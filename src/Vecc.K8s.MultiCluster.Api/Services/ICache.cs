@@ -1,11 +1,22 @@
 ﻿using k8s.Models;
+using Vecc.K8s.MultiCluster.Api.Models.Core;
 
 namespace Vecc.K8s.MultiCluster.Api.Services
 {
     public interface ICache
     {
-        Task SetHostStateAsync(string hostname, string clusterIdentifier, bool up, V1Ingress? ingress = null, V1Service? service = null);
-        Task<string[]> GetHostnamesAsync();
-        Task<bool> IsHostUpAsync(string hostName);
+        Task<string[]> GetClusterIdentifiersAsync();
+        Task SetHostIPsAsync(string hostname, HostIP[] hostIPs);
+        Task<Models.Core.Host?> GetHostInformationAsync(string hostname);
+        Task<string[]> GetHostnamesAsync(string clusterIdentifier);
+        Task<string[]> GetKeysAsync(string prefix);
+        Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier);
+        Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname);
+        Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat);
+        Task<bool> IsServiceMonitoredAsync(string ns, string name);
+        Task TrackServiceAsync(string ns, string name);
+        Task UntrackAllServicesAsync();
+        Task SetResourceVersionAsync(string uniqueIdentifier, string version);
+        Task<string> GetLastResourceVersionAsync(string uniqueIdentifier);
     }
 }

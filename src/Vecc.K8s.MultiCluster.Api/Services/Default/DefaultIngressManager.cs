@@ -1,7 +1,5 @@
-﻿using IdentityModel.OidcClient;
-using k8s.Models;
+﻿using k8s.Models;
 using KubeOps.KubernetesClient;
-using Namotion.Reflection;
 using System.Data;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
@@ -46,7 +44,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             if (string.IsNullOrWhiteSpace(ns))
             {
-                _logger.LogInformation("{@namespace} is empty, getting all valid ingress objects from all namespaces", ns);
+                _logger.LogInformation("{@namespace} is empty. We will get all valid ingress objects from all namespaces", ns);
                 return await GetAllValidIngressesAsync();
             }
 
@@ -79,21 +77,14 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
-        public async Task<Dictionary<string, IList<V1Ingress>>> GetAvailableHostnamesAsync()
+        public Task<Dictionary<string, IList<V1Ingress>>> GetAvailableHostnamesAsync(
+            IList<V1Ingress> allIngresses,
+            IList<V1Service> allServices,
+            IList<V1Endpoints> allEndpoints)
         {
             var result = new Dictionary<string, IList<V1Ingress>>();
             var hostnameValidIngresses = new Dictionary<string, IList<V1Ingress>>();
             var hostnameInvalidIngresses = new Dictionary<string, IList<V1Ingress>>();
-
-            _logger.LogInformation("Getting all ingresses");
-            var allIngresses = await GetAllIngressesAsync();
-
-            _logger.LogInformation("Getting all endpoints");
-            var allEndpoints = await _serviceManager.GetEndpointsAsync(null);
-
-            _logger.LogInformation("Getting all services");
-            var allServices = await _serviceManager.GetServicesAsync(null);
-            _logger.LogInformation("Done getting Kubernetes objects");
 
             var namespacedIngresses = allIngresses.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
             var namespacedEndpoints = allEndpoints.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
@@ -163,7 +154,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
 
-            return result;
+            return Task.FromResult(result);
         }
 
         public bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, IList<V1Endpoints> endpoints)
@@ -270,6 +261,15 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             return result;
+        }
+
+        public Task<IList<string>> GetRelatedServiceNamesAsync(V1Ingress ingress)
+        {
+            var ns = ingress.Namespace();
+            var rules = ingress.Spec.Rules?.Where(rule=>rule?.Http != null).ToList() ?? new List<V1IngressRule>();
+            var paths = rules.SelectMany(rule => rule.Http.Paths).Where(path => path?.Backend.Service != null);
+            var result = paths.Select(path => path.Backend.Service.Name).ToList();
+            return Task.FromResult<IList<string>>(result);
         }
 
         private bool IsBackendValid(V1HTTPIngressPath path)

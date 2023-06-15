@@ -21,7 +21,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             if (string.IsNullOrWhiteSpace(ns))
             {
-                _logger.LogInformation("{@namespace} is empty, getting service objects from all namespaces", ns);
+                _logger.LogInformation("{@namespace} is empty. We will get service objects from all namespaces", ns);
                 return await GetServicesAsync();
             }
 
@@ -37,35 +37,26 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
-        public async Task<List<V1Service>> GetLoadBalancerEndpointsAsync(string? ns)
+        public Task<List<V1Service>> GetLoadBalancerEndpointsAsync(IList<V1Service> services)
         {
-            _logger.LogInformation("Getting services for namespace: {@namespace}", ns ?? "ALL");
-            var services = await GetServicesAsync(ns);
-
             _logger.LogInformation("Finding load balancer services");
             var result = services.Where(service => service.Spec.Type == "LoadBalancer").ToList();
 
             _logger.LogInformation("Done");
-
-            return result;
+            return Task.FromResult(result);
         }
 
-        public async Task<Dictionary<string, IList<V1Service>>> GetAvailableHostnamesAsync()
+        public async Task<Dictionary<string, IList<V1Service>>> GetAvailableHostnamesAsync(IList<V1Service> allServices, IList<V1Endpoints> allEndpoints)
         {
             var result = new Dictionary<string, IList<V1Service>>();
-
-            _logger.LogInformation("Getting all endpoints");
-            var allEndpoints = await GetEndpointsAsync();
-
-            _logger.LogInformation("Getting all services");
-            var allServices = await GetLoadBalancerEndpointsAsync(null);
-            _logger.LogInformation("Done getting Kubernetes objects");
 
             var namespacedEndpoints = allEndpoints.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
             var namespacedServices = allServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
 
             foreach (var serviceEntry in namespacedServices)
             {
+                _logger.LogInformation("Checking load balancer service namespace: {@namespace}", serviceEntry.Key);
+
                 if (!namespacedEndpoints.TryGetValue(serviceEntry.Key, out var endpoints))
                 {
                     foreach (var service in serviceEntry.Value)
@@ -78,10 +69,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     foreach (var service in serviceEntry.Value)
                     {
                         using var scope = _logger.BeginScope("{@namespace}/{@service}", service.Namespace(), service.Name());
-                        var hostname = service.GetAnnotation("veccsolutions.com/hostname");
+                        var hostname = service.GetAnnotation("multicluster.veccsolutions.com/hostname");
                         if (string.IsNullOrWhiteSpace(hostname))
                         {
-                            _logger.LogInformation("Service does not have the veccsolutions.com/hostname annotation, skipping.");
+                            _logger.LogInformation("Service {@service} does not have the multicluster.veccsolutions.com/hostname annotation, skipping.", service.Name());
                             continue;
                         }
 
@@ -94,13 +85,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                         if (serviceEndpoint.Subsets == null)
                         {
-                            _logger.LogWarning("Subsets missing in service endpoint");
+                            _logger.LogWarning("Subsets missing in service endpoint {@namespace}/{@service}, skipping {@hostname}", service.Namespace(), service.Name(), hostname);
                             continue;
                         }
 
                         if (serviceEndpoint.Subsets.Count == 0)
                         {
-                            _logger.LogWarning("Service has no available backend.");
+                            _logger.LogWarning("Service has no available backend {@namespace}/{@service}, skipping {@hostname}", service.Namespace(), service.Name(), hostname);
                             continue;
                         }
 
