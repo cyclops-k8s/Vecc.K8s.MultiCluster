@@ -128,14 +128,14 @@ app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
 var controllerPaths = new string[] { "/Heartbeat", "/Authentication", "/Host" };
-app.MapWhen((context) => controllerPaths.Any(_ => context.Request.Path.StartsWithSegments(_)), _ =>
+app.MapWhen(context => controllerPaths.Any(path => context.Request.Path.StartsWithSegments(path)), appBuilder =>
 {
-    _.UseRouting();
-    _.UseAuthentication();
-    _.UseAuthorization();
-    _.UseEndpoints((_) => _.MapControllers());
+    appBuilder.UseRouting();
+    appBuilder.UseAuthentication();
+    appBuilder.UseAuthorization();
+    appBuilder.UseEndpoints(endpointBuilder => endpointBuilder.MapControllers());
 });
-app.MapWhen((context) => !controllerPaths.Any(_ => context.Request.Path.StartsWithSegments(_)), _ => _.UseKubernetesOperator());
+app.MapWhen(context => !controllerPaths.Any(path => context.Request.Path.StartsWithSegments(path)), appBuilder => appBuilder.UseKubernetesOperator());
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Starting");

@@ -5,16 +5,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
     public class RedisQueue : IQueue
     {
         private const string CHANNEL_HOST_CHANGE = "channel_host_change";
-        private const string CHANNEL_CLUSTER_HOST_CHANGE = "channel_cluster_host_change";
 
         private readonly ILogger<RedisQueue> _logger;
-        private readonly IDatabase _database;
         private readonly ISubscriber _subscriber;
 
-        public RedisQueue(ILogger<RedisQueue> logger, IDatabase database, ISubscriber subscriber)
+        public RedisQueue(ILogger<RedisQueue> logger, ISubscriber subscriber)
         {
             _logger = logger;
-            _database = database;
             _subscriber = subscriber;
 
             _subscriber.Subscribe(new RedisChannel(CHANNEL_HOST_CHANGE, RedisChannel.PatternMode.Auto), Redis_OnHostChanged);
