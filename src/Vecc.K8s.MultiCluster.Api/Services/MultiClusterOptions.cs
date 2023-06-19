@@ -7,5 +7,6 @@
         public int HeartbeatCheckInterval { get; set; } = 1;
         public int HeartbeatSetInterval { get; set; } = 10;
         public PeerHosts[] Peers { get; set; } = Array.Empty<PeerHosts>();
+        public byte[] ClusterSalt { get; set; } = Array.Empty<byte>();
     }
 }

@@ -1,12 +1,13 @@
 using KubeOps.Operator;
 using KubeOps.Operator.Leadership;
-using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using StackExchange.Redis;
 using System.Net;
 using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Services;
+using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,7 +20,30 @@ builder.Host.UseSerilog((context, configuration) =>
 });
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition(ApiAuthenticationHandlerOptions.DefaultScheme, new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Name = "X-Api-Key",
+        Type = SecuritySchemeType.ApiKey
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = ApiAuthenticationHandlerOptions.DefaultScheme
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 builder.Services.AddKubernetesOperator((operatorSettings) =>
 {
     operatorSettings.EnableLeaderElection = false;
@@ -44,9 +68,14 @@ if (args.Contains("--orchestrator") ||
     builder.Services.AddSingleton<IDnsServer, DnsServer>();
     builder.Services.AddSingleton<Vecc.Dns.ILogger, DefaultDnsLogging>();
     builder.Services.AddSingleton<IDnsResolver>(sp => sp.GetRequiredService<DefaultDnsResolver>());
-
-    builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
+    builder.Services.AddScoped<ApiAuthenticationHandler>();
+    builder.Services.AddSingleton<ApiAuthenticationHasher>();
+    builder.Services.AddSingleton<IQueue, RedisQueue>();
     builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
+    builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
+    builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
+    builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme)
+        .AddScheme<ApiAuthenticationHandlerOptions, ApiAuthenticationHandler>(ApiAuthenticationHandlerOptions.DefaultScheme, null);
 
     builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     {
@@ -76,20 +105,22 @@ if (args.Contains("--orchestrator") ||
         var subscriber = multiplexer.GetSubscriber();
         return subscriber;
     });
-
-    builder.Services.AddSingleton<IQueue, RedisQueue>();
 }
 
 var app = builder.Build();
-
+var app2 = (IApplicationBuilder)app;
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseAuthorization();
-
-app.MapControllers();
-app.UseKubernetesOperator();
+var controllerPaths = new string[] { "/Heartbeat", "/Authentication" };
+app.MapWhen((context) => controllerPaths.Any(_ => context.Request.Path.StartsWithSegments(_)), _ =>
+{
+    _.UseRouting();
+    _.UseAuthentication();
+    _.UseAuthorization();
+    _.UseEndpoints((_) => _.MapControllers());
+});
+app.MapWhen((context) => !controllerPaths.Any(_ => context.Request.Path.StartsWithSegments(_)), _ => _.UseKubernetesOperator());
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Starting");
@@ -136,7 +167,7 @@ if (args.Contains("--dns-server"))
 if (args.Contains("--front-end"))
 {
     logger.LogInformation("Running the front end");
- 
+
     if (!addedOperator)
     {
         processTasks.Add(app.RunOperatorAsync(Array.Empty<string>()));

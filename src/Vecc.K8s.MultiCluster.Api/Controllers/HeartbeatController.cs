@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 using Vecc.K8s.MultiCluster.Api.Services;
@@ -7,6 +8,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 {
     [ApiController]
     [Route("[controller]")]
+    [Authorize]
     public class HeartbeatController : ControllerBase
     {
         private readonly ILogger<HeartbeatController> _logger;
@@ -25,15 +27,18 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// </summary>
         /// <param name="clusterIdentifier">Cluster identifier to update the heartbeat for</param>
         /// <returns>Nothing</returns>
-        [HttpPost("{clusterIdentifier}")]
+        [HttpPost("")]
         [ProducesResponseType(500)]
         [ProducesResponseType(400)]
         [ProducesResponseType(204)]
-        public async Task<ActionResult> Heartbeat(
-            [FromRoute]
-            [Required(AllowEmptyStrings = false, ErrorMessage = "ClusterIdentifier is required")]
-            string clusterIdentifier)
+        public async Task<ActionResult> Heartbeat()
         {
+            var clusterIdentifier = User.Identity?.Name;
+            if (clusterIdentifier == null)
+            {
+                return Unauthorized();
+            }
+
             try
             {
                 _logger.LogInformation("Received cluster heartbeat for {@clusterIdentifier}", clusterIdentifier);
