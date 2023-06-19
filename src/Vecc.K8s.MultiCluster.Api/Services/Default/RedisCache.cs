@@ -233,7 +233,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
             if (!clusterIdentifiers.Contains(clusterIdentifier))
             {
-                var identifiers = string.Join(',', clusterIdentifiers.Union(new[] { clusterIdentifier }));
+                var identifiers = string.Join('\t', clusterIdentifiers.Union(new[] { clusterIdentifier }));
                 await _database.StringSetAsync("clusteridentifiers", identifiers);
             }
         }

@@ -19,6 +19,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly CancellationToken _shutdownCancellationToken;
         private readonly ManualResetEvent _shutdownEvent;
+        private readonly ManualResetEvent _synchronizeLocalClusterHolder;
 
         public DefaultHostnameSynchronizer(
             ILogger<DefaultHostnameSynchronizer> logger,
@@ -44,202 +45,217 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _shutdownEvent = new ManualResetEvent(false);
             _shutdownCancellationToken = _shutdownCancellationTokenSource.Token;
+            _synchronizeLocalClusterHolder = new ManualResetEvent(true);
         }
 
         public async Task SynchronizeLocalClusterAsync()
         {
-            IList<V1Ingress>? ingresses = null;
-            IList<V1Service>? services = null;
-            IList<V1Endpoints>? endpoints = null;
-            IList<V1Service>? loadBalancerServices = null;
-            Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
-
-            await Task.WhenAll(
-                Task.Run(async () => ingresses = await _ingressManager.GetAllIngressesAsync(null)),
-                Task.Run(async () => services = await _serviceManager.GetServicesAsync(null)),
-                Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(null)));
-
-            _logger.LogInformation("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints}", ingresses!.Count, services!.Count, endpoints!.Count);
-
-            await Task.WhenAll(
-                Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpoints)),
-                Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerEndpointsAsync(services)));
-
-            var serviceHosts = await _serviceManager.GetAvailableHostnamesAsync(services, endpoints);
-
-            _logger.LogInformation("Counts validingresses-{@ingress} load balancer services-{@lbservices} valid services-{@services}",
-                ingressHosts!.Count, loadBalancerServices!.Count, serviceHosts.Count);
-
-            var validServiceHosts = new Dictionary<string, V1Service>();
-            var validIngressHosts = new Dictionary<string, V1Ingress>();
-            var invalidHostnames = new List<string>();
-
-            _logger.LogInformation("Setting service tracking");
-            _logger.LogInformation("Purging current tracked list");
-            await _cache.UntrackAllServicesAsync();
-            _logger.LogInformation("Tracking ingress related services");
-            foreach (var ingress in ingresses)
+            _synchronizeLocalClusterHolder.WaitOne(5000);
+            try
             {
-                await _cache.SetResourceVersionAsync(ingress.Metadata.Uid, ingress.Metadata.ResourceVersion);
-                var serviceNames = await _ingressManager.GetRelatedServiceNamesAsync(ingress);
-                foreach (var name in serviceNames)
+                var ipAddresses = new Dictionary<string, List<HostIP>>();
+                var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
+                var validServiceHosts = new Dictionary<string, V1Service>();
+                var validIngressHosts = new Dictionary<string, V1Ingress>();
+                var invalidHostnames = new List<string>();
+                IList<V1Ingress>? ingresses = null;
+                IList<V1Service>? services = null;
+                IList<V1Endpoints>? endpoints = null;
+                IList<V1Service>? loadBalancerServices = null;
+                Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
+
+                await Task.WhenAll(
+                    Task.Run(async () => ingresses = await _ingressManager.GetAllIngressesAsync(null)),
+                    Task.Run(async () => services = await _serviceManager.GetServicesAsync(null)),
+                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(null)));
+
+                _logger.LogInformation("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints}", ingresses!.Count, services!.Count, endpoints!.Count);
+
+                await Task.WhenAll(
+                    Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpoints)),
+                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerEndpointsAsync(services)));
+
+                var serviceHosts = await _serviceManager.GetAvailableHostnamesAsync(loadBalancerServices!, endpoints);
+
+                _logger.LogInformation("Counts validingresses-{@ingress} load balancer services-{@lbservices} valid services-{@services}",
+                    ingressHosts!.Count, loadBalancerServices!.Count, serviceHosts.Count);
+
+                _logger.LogInformation("Setting service tracking");
+                _logger.LogInformation("Purging current tracked list");
+                await _cache.UntrackAllServicesAsync();
+                _logger.LogInformation("Tracking ingress related services");
+                foreach (var ingress in ingresses)
                 {
-                    await _cache.TrackServiceAsync(ingress.Metadata.NamespaceProperty, name);
-                }
-            }
-            _logger.LogInformation("Tracking load balancer services");
-            foreach (var service in loadBalancerServices)
-            {
-                await _cache.TrackServiceAsync(service.Metadata.NamespaceProperty, service.Metadata.Name);
-            }
-            _logger.LogInformation("Tracking services");
-            foreach (var service in services)
-            {
-                await _cache.SetResourceVersionAsync(service.Metadata.Uid, service.Metadata.ResourceVersion);
-            }
-            _logger.LogInformation("Tracking endpoints");
-            foreach (var endpoint in endpoints)
-            {
-                await _cache.SetResourceVersionAsync(endpoint.Metadata.Uid, endpoint.Metadata.ResourceVersion);
-            }
-            _logger.LogInformation("Done tracking services");
-
-            foreach (var service in serviceHosts)
-            {
-                if (service.Value.Count > 1)
-                {
-                    _logger.LogWarning("Too many service hosts for {@hostname}", service.Key);
-                    invalidHostnames.Add(service.Key);
-                    continue;
-                }
-                if (ingressHosts.ContainsKey(service.Key))
-                {
-                    _logger.LogWarning("Host {@hostname} exists in both an ingress and a service", service.Key);
-                    invalidHostnames.Add(service.Key);
-                    continue;
-                }
-
-                validServiceHosts[service.Key] = service.Value[0];
-            }
-
-            foreach (var ingressHost in ingressHosts)
-            {
-                if (serviceHosts.ContainsKey(ingressHost.Key))
-                {
-                    _logger.LogWarning("Host {@hostname} exists in both an ingress and a service", ingressHost.Key);
-                    continue;
-                }
-
-                foreach (var ingress in ingressHost.Value)
-                {
-                    if (validIngressHosts.TryGetValue(ingressHost.Key, out var foundIngress))
+                    await _cache.SetResourceVersionAsync(ingress.Metadata.Uid, ingress.Metadata.ResourceVersion);
+                    var serviceNames = await _ingressManager.GetRelatedServiceNamesAsync(ingress);
+                    foreach (var name in serviceNames)
                     {
-                        // check to make sure the endpoint IP's match, otherwise, mark as invalid and ignore this hostname.
-                        var balancerEndpoints = foundIngress.Status.LoadBalancer.Ingress;
-                        var ingressEndpoints = ingress.Status.LoadBalancer.Ingress;
-                        var same = ingressEndpoints.All(lb => balancerEndpoints.Any(blb => blb.Ip == lb.Ip));
-                        same = same && balancerEndpoints.All(blb => ingressEndpoints.Any(lb => lb.Ip == blb.Ip));
-                        if (!same)
-                        {
-                            _logger.LogWarning("Exposed IP mismatch for {@hostname}", ingressHost.Key);
-                            invalidHostnames.Add(ingressHost.Key);
-                        }
+                        await _cache.TrackServiceAsync(ingress.Metadata.NamespaceProperty, name);
+                    }
+                }
+                _logger.LogInformation("Tracking load balancer services");
+                foreach (var service in loadBalancerServices)
+                {
+                    await _cache.TrackServiceAsync(service.Metadata.NamespaceProperty, service.Metadata.Name);
+                }
+                _logger.LogInformation("Tracking services");
+                foreach (var service in services)
+                {
+                    await _cache.SetResourceVersionAsync(service.Metadata.Uid, service.Metadata.ResourceVersion);
+                }
+                _logger.LogInformation("Tracking endpoints");
+                foreach (var endpoint in endpoints)
+                {
+                    await _cache.SetResourceVersionAsync(endpoint.Metadata.Uid, endpoint.Metadata.ResourceVersion);
+                }
+                _logger.LogInformation("Done tracking services");
+
+                foreach (var service in serviceHosts)
+                {
+                    if (service.Value.Count > 1)
+                    {
+                        _logger.LogWarning("Too many service hosts for {@hostname}", service.Key);
+                        invalidHostnames.Add(service.Key);
+                        continue;
+                    }
+                    if (ingressHosts.ContainsKey(service.Key))
+                    {
+                        _logger.LogWarning("Host {@hostname} exists in both an ingress and a service", service.Key);
+                        invalidHostnames.Add(service.Key);
                         continue;
                     }
 
-                    validIngressHosts[ingressHost.Key] = ingress;
-                }
-            }
-
-            var ipAddresses = new Dictionary<string, List<HostIP>>();
-            var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
-
-            foreach (var service in validServiceHosts)
-            {
-                var addresses = service.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
-                var priorityAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
-                if (!int.TryParse(priorityAnnotation, out var priority) &&
-                    priorityAnnotation != null)
-                {
-                    _logger.LogError("Priority annotation was not parsable as an int, defaulting to 0.");
+                    validServiceHosts[service.Key] = service.Value[0];
                 }
 
-                var weightAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
-                if (!int.TryParse(weightAnnotation, out var weight))
+                foreach (var ingressHost in ingressHosts)
                 {
-                    weight = 50;
-                    if (weightAnnotation != null)
+                    if (serviceHosts.ContainsKey(ingressHost.Key))
                     {
-                        _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
+                        _logger.LogWarning("Host {@hostname} exists in both an ingress and a service", ingressHost.Key);
+                        continue;
+                    }
+
+                    foreach (var ingress in ingressHost.Value)
+                    {
+                        if (validIngressHosts.TryGetValue(ingressHost.Key, out var foundIngress))
+                        {
+                            // check to make sure the endpoint IP's match, otherwise, mark as invalid and ignore this hostname.
+                            var balancerEndpoints = foundIngress.Status.LoadBalancer.Ingress;
+                            var ingressEndpoints = ingress.Status.LoadBalancer.Ingress;
+                            var same = ingressEndpoints.All(lb => balancerEndpoints.Any(blb => blb.Ip == lb.Ip));
+                            same = same && balancerEndpoints.All(blb => ingressEndpoints.Any(lb => lb.Ip == blb.Ip));
+                            if (!same)
+                            {
+                                _logger.LogWarning("Exposed IP mismatch for {@hostname}", ingressHost.Key);
+                                invalidHostnames.Add(ingressHost.Key);
+                            }
+                            continue;
+                        }
+
+                        validIngressHosts[ingressHost.Key] = ingress;
                     }
                 }
 
-                if (!ipAddresses.ContainsKey(service.Key))
+                foreach (var service in validServiceHosts)
                 {
-                    ipAddresses[service.Key] = new List<HostIP>();
-                }
-
-                ipAddresses[service.Key].AddRange(addresses.Select(address => new HostIP
-                {
-                    IPAddress = address.ToString(),
-                    Priority = priority,
-                    Weight = weight
-                }));
-            }
-
-            foreach (var ingress in validIngressHosts)
-            {
-                var addresses = ingress.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
-                var priorityAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
-                if (!int.TryParse(priorityAnnotation, out var priority) &&
-                    priorityAnnotation != null)
-                {
-                    _logger.LogError("Priority annotation was not parsable as an int, defaulting to 0.");
-                }
-
-                var weightAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
-                if (!int.TryParse(weightAnnotation, out var weight))
-                {
-                    weight = 50;
-                    if (weightAnnotation != null)
+                    var addresses = service.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
+                    var priorityAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
+                    if (string.IsNullOrWhiteSpace(priorityAnnotation))
                     {
-                        _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
+                        priorityAnnotation = "0";
+                    }
+                    if (!int.TryParse(priorityAnnotation, out var priority) &&
+                        priorityAnnotation != null)
+                    {
+                        _logger.LogError("Priority annotation was not parsable as an int, defaulting to 0.");
+                    }
+
+                    var weightAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
+                    if (string.IsNullOrWhiteSpace(weightAnnotation))
+                    {
+                        weightAnnotation = "50";
+                    }
+                    if (!int.TryParse(weightAnnotation, out var weight))
+                    {
+                        weight = 50;
+                        if (weightAnnotation != null)
+                        {
+                            _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
+                        }
+                    }
+
+                    if (!ipAddresses.ContainsKey(service.Key))
+                    {
+                        ipAddresses[service.Key] = new List<HostIP>();
+                    }
+
+                    ipAddresses[service.Key].AddRange(addresses.Select(address => new HostIP
+                    {
+                        IPAddress = address.ToString(),
+                        Priority = priority,
+                        Weight = weight
+                    }));
+                }
+
+                foreach (var ingress in validIngressHosts)
+                {
+                    var addresses = ingress.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
+                    var priorityAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
+                    if (!int.TryParse(priorityAnnotation, out var priority) &&
+                        priorityAnnotation != null)
+                    {
+                        _logger.LogError("Priority annotation was not parsable as an int, defaulting to 0.");
+                    }
+
+                    var weightAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
+                    if (!int.TryParse(weightAnnotation, out var weight))
+                    {
+                        weight = 50;
+                        if (weightAnnotation != null)
+                        {
+                            _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
+                        }
+                    }
+
+                    if (!ipAddresses.ContainsKey(ingress.Key))
+                    {
+                        ipAddresses[ingress.Key] = new List<HostIP>();
+                    }
+
+                    ipAddresses[ingress.Key].AddRange(addresses.Select(address => new HostIP
+                    {
+                        IPAddress = address.ToString(),
+                        Priority = priority,
+                        Weight = weight
+                    }));
+                }
+
+
+                foreach (var host in ipAddresses)
+                {
+                    if (await _cache.SetHostIPsAsync(host.Key, localClusterIdentifier, host.Value.ToArray()))
+                    {
+                        _logger.LogInformation("Host information changed for {@hostname}", host.Key);
+                        await SendHostUpdatesAsync(host.Key, host.Value.ToArray());
                     }
                 }
 
-                if (!ipAddresses.ContainsKey(ingress.Key))
+                var myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier);
+                foreach (var host in myHosts)
                 {
-                    ipAddresses[ingress.Key] = new List<HostIP>();
-                }
-
-                ipAddresses[ingress.Key].AddRange(addresses.Select(address => new HostIP
-                {
-                    IPAddress = address.ToString(),
-                    Priority = priority,
-                    Weight = weight
-                }));
-            }
-
-
-            foreach (var host in ipAddresses)
-            {
-                if (await _cache.SetHostIPsAsync(host.Key, localClusterIdentifier, host.Value.ToArray()))
-                {
-                    _logger.LogInformation("Host information changed for {@hostname}", host.Key);
-                    await SendHostUpdatesAsync(host.Key, host.Value.ToArray());
-                }
-            }
-
-            var myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier);
-            foreach (var host in myHosts)
-            {
-                if (!ipAddresses.ContainsKey(host))
-                {
-                    if (await _cache.SetHostIPsAsync(host, localClusterIdentifier, Array.Empty<HostIP>()))
+                    if (!ipAddresses.ContainsKey(host))
                     {
-                        await SendHostUpdatesAsync(host, Array.Empty<HostIP>());
+                        if (await _cache.SetHostIPsAsync(host, localClusterIdentifier, Array.Empty<HostIP>()))
+                        {
+                            await SendHostUpdatesAsync(host, Array.Empty<HostIP>());
+                        }
                     }
                 }
+            }
+            finally
+            {
+                _synchronizeLocalClusterHolder.Set();
             }
         }
 
@@ -413,22 +429,23 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                                 }).ToArray()
                             };
                             _logger.LogDebug("Sending update to {@url}", peer.Url);
-                            await httpClient.PostAsync($"/Heartbeat", JsonContent.Create(data));
+                            var result = await httpClient.PostAsync($"/Host", JsonContent.Create(data));
+                            result.EnsureSuccessStatusCode();
                             _logger.LogDebug("Done");
                         }
                         catch (Exception exception)
                         {
-                            _logger.LogError(exception, "Unable to post heartbeat");
+                            _logger.LogError(exception, "Unable to post host update");
                         }
                     }, _shutdownCancellationToken);
                 }
                 catch (TaskCanceledException)
                 {
-                    _logger.LogWarning("Shutdown requested while posting heartbeat");
+                    _logger.LogWarning("Shutdown requested while sending host update");
                 }
                 catch (Exception exception)
                 {
-                    _logger.LogWarning(exception, "Unexpexted exception posting heartbeat");
+                    _logger.LogWarning(exception, "Unexpected exception posting host update");
                 }
                 return Task.CompletedTask;
             });

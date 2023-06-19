@@ -127,7 +127,7 @@ var app2 = (IApplicationBuilder)app;
 app.UseSerilogRequestLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
-var controllerPaths = new string[] { "/Heartbeat", "/Authentication" };
+var controllerPaths = new string[] { "/Heartbeat", "/Authentication", "/Host" };
 app.MapWhen((context) => controllerPaths.Any(_ => context.Request.Path.StartsWithSegments(_)), _ =>
 {
     _.UseRouting();
