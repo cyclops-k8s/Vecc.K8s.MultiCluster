@@ -1,12 +1,11 @@
-﻿using k8s.Models;
-using Vecc.K8s.MultiCluster.Api.Models.Core;
+﻿using Vecc.K8s.MultiCluster.Api.Models.Core;
 
 namespace Vecc.K8s.MultiCluster.Api.Services
 {
     public interface ICache
     {
         Task<string[]> GetClusterIdentifiersAsync();
-        Task SetHostIPsAsync(string hostname, HostIP[] hostIPs);
+        Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs);
         Task<Models.Core.Host?> GetHostInformationAsync(string hostname);
         Task<string[]> GetHostnamesAsync(string clusterIdentifier);
         Task<string[]> GetKeysAsync(string prefix);

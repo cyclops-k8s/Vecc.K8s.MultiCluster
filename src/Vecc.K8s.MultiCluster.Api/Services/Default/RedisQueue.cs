@@ -17,7 +17,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _database = database;
             _subscriber = subscriber;
 
-            _subscriber.Subscribe(CHANNEL_HOST_CHANGE, Redis_OnHostChanged);
+            _subscriber.Subscribe(new RedisChannel(CHANNEL_HOST_CHANGE, RedisChannel.PatternMode.Auto), Redis_OnHostChanged);
             OnHostChangedAsync = new OnHostChangedAsyncDelegate(_ => Task.CompletedTask);
         }
 
@@ -26,7 +26,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task PublishHostChangedAsync(string hostname)
         {
             _logger.LogDebug("Notifiying host {@hostname} state changed.", hostname);
-            await _subscriber.PublishAsync(CHANNEL_HOST_CHANGE, hostname);
+            await _subscriber.PublishAsync(new RedisChannel(CHANNEL_HOST_CHANGE, RedisChannel.PatternMode.Auto), hostname);
         }
 
         private async void Redis_OnHostChanged(RedisChannel channel, RedisValue value)

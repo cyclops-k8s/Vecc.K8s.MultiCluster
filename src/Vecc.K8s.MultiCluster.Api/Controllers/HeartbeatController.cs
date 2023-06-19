@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
 using Vecc.K8s.MultiCluster.Api.Services;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers

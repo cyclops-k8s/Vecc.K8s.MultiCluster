@@ -83,13 +83,25 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
-        public async Task SetHostIPsAsync(string hostname, HostIP[] hostIPs)
+        /// <summary>
+        /// Sets the hostname in the credis cache. Returns whether the host was updated or not.
+        /// </summary>
+        /// <param name="hostname"></param>
+        /// <param name="hostIPs"></param>
+        /// <returns></returns>
+        public async Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs)
         {
-            foreach (var g in hostIPs.GroupBy(ip => ip.ClusterIdentifier))
+            var result = false;
+            await VerifyClusterExistsAsync(clusterIdentifier);
+
+            var key = $"cluster.{clusterIdentifier}.hosts.{hostname}";
+            var hostModel = new HostModel { HostIPs = hostIPs };
+            var ips = JsonSerializer.Serialize(hostModel);
+            var oldConfig = await _database.StringGetAsync(key);
+
+            if (!oldConfig.HasValue || oldConfig != ips)
             {
-                var key = $"cluster.{g.Key}.hosts.{hostname}";
-                var hostModel = new HostModel { HostIPs = g.ToArray() };
-                var ips = JsonSerializer.Serialize(hostModel);
+                result = true;
                 var status = await _database.StringSetAsync(key, ips);
 
                 if (!status)
@@ -97,11 +109,14 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     //TODO: Implement retry logic for redis cache
                     _logger.LogError("Unable to update ips for host {@hostname}", hostname);
                 }
-
-                await VerifyClusterExistsAsync(g.Key);
             }
 
-            await RefreshHostnameIps(hostname);
+            //Only refresh the hostname ip's if they actually changed
+            if (result)
+            {
+                await RefreshHostnameIps(hostname);
+            }
+            return result;
         }
 
         public async Task<string[]> GetClusterIdentifiersAsync()
@@ -114,7 +129,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 return Array.Empty<string>();
             }
 
-            var identifiers = (string)identifierResult;
+            var identifiers = (string)identifierResult!;
             var result = identifiers.Split('\t');
 
             return result;

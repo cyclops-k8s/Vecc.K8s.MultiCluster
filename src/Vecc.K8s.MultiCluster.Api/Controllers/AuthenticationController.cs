@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Vecc.K8s.MultiCluster.Api.Models.Api;
 using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 
@@ -11,18 +12,11 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
     [AllowAnonymous]
     public class AuthenticationController : ControllerBase
     {
-        private readonly ILogger<AuthenticationController> _logger;
-        private readonly IOptions<MultiClusterOptions> _options;
         private readonly IOptions<ApiAuthenticationHandlerOptions> _authOptions;
         private readonly ApiAuthenticationHasher _hasher;
 
-        public AuthenticationController(ILogger<AuthenticationController> logger,
-            IOptions<MultiClusterOptions> options,
-            IOptions<ApiAuthenticationHandlerOptions> authOptions,
-            ApiAuthenticationHasher hasher)
+        public AuthenticationController(IOptions<ApiAuthenticationHandlerOptions> authOptions, ApiAuthenticationHasher hasher)
         {
-            _logger = logger;
-            _options = options;
             _authOptions = authOptions;
             _hasher = hasher;
         }
@@ -58,18 +52,6 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             };
 
             return Ok(result);
-        }
-
-        public class NewAuthModel
-        {
-            public string EnvironmentIdentifier { get; set; } = string.Empty;
-            public string EnvironmentHash { get; set; } = string.Empty;
-            public string Key { get; set; } = string.Empty;
-        }
-
-        public class NewSaltModel
-        {
-            public string Salt { get; set; } = string.Empty;
         }
     }
 }

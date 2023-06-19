@@ -74,9 +74,24 @@ if (args.Contains("--orchestrator") ||
     builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
     builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
     builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
+    builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
+
     builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme)
         .AddScheme<ApiAuthenticationHandlerOptions, ApiAuthenticationHandler>(ApiAuthenticationHandlerOptions.DefaultScheme, null);
 
+    var options = new MultiClusterOptions();
+    builder.Configuration.Bind(options);
+    if (options.Peers != null)
+    {
+        foreach (var peer in options.Peers)
+        {
+            builder.Services.AddHttpClient(peer.Url, client =>
+            {
+                client.BaseAddress = new Uri(peer.Url);
+                client.DefaultRequestHeaders.Add("X-Api-Key", peer.Key);
+            });
+        }
+    }
     builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     {
         //TODO: make this configurable

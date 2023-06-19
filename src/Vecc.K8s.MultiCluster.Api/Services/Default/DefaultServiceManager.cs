@@ -46,7 +46,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult(result);
         }
 
-        public async Task<Dictionary<string, IList<V1Service>>> GetAvailableHostnamesAsync(IList<V1Service> allServices, IList<V1Endpoints> allEndpoints)
+        public Task<Dictionary<string, IList<V1Service>>> GetAvailableHostnamesAsync(IList<V1Service> allServices, IList<V1Endpoints> allEndpoints)
         {
             var result = new Dictionary<string, IList<V1Service>>();
 
@@ -106,7 +106,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
 
-            return result;
+            return Task.FromResult(result);
         }
 
         public async Task<List<V1Endpoints>> GetEndpointsAsync(string? ns)

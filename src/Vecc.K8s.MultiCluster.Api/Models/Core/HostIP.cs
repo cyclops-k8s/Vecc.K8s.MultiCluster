@@ -4,7 +4,6 @@ namespace Vecc.K8s.MultiCluster.Api.Models.Core
 {
     public class HostIP
     {
-        public string ClusterIdentifier { get; set; } = string.Empty;
         public string IPAddress { get; set; } = string.Empty;
         public int Priority { get; set; }
         public int Weight { get; set; }
@@ -20,8 +19,7 @@ namespace Vecc.K8s.MultiCluster.Api.Models.Core
             {
                 if (IPAddress == hostIp.IPAddress &&
                     Weight == hostIp.Weight &&
-                    Priority == hostIp.Priority &&
-                    ClusterIdentifier == hostIp.ClusterIdentifier)
+                    Priority == hostIp.Priority)
                 {
                     return true;
                 }
@@ -29,5 +27,7 @@ namespace Vecc.K8s.MultiCluster.Api.Models.Core
 
             return false;
         }
+
+        public override int GetHashCode() => base.GetHashCode();
     }
 }

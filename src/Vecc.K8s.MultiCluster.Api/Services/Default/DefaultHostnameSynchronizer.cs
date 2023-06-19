@@ -15,6 +15,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly IHostApplicationLifetime _lifetime;
         private readonly LeaderStatus _leaderStatus;
         private readonly IDateTimeProvider _dateTimeProvider;
+        private readonly IHttpClientFactory _clientFactory;
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly CancellationToken _shutdownCancellationToken;
         private readonly ManualResetEvent _shutdownEvent;
@@ -27,7 +28,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             IOptions<MultiClusterOptions> multiClusterOptions,
             IHostApplicationLifetime lifetime,
             LeaderStatus leaderStatus,
-            IDateTimeProvider dateTimeProvider)
+            IDateTimeProvider dateTimeProvider,
+            IHttpClientFactory clientFactory)
         {
             _logger = logger;
             _ingressManager = ingressManager;
@@ -37,6 +39,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _lifetime = lifetime;
             _leaderStatus = leaderStatus;
             _dateTimeProvider = dateTimeProvider;
+            _clientFactory = clientFactory;
             _lifetime.ApplicationStopping.Register(OnApplicationStopping);
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _shutdownEvent = new ManualResetEvent(false);
@@ -49,7 +52,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             IList<V1Service>? services = null;
             IList<V1Endpoints>? endpoints = null;
             IList<V1Service>? loadBalancerServices = null;
-            Dictionary<string, IList<V1Ingress>> ingressHosts = null;
+            Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
 
             await Task.WhenAll(
                 Task.Run(async () => ingresses = await _ingressManager.GetAllIngressesAsync(null)),
@@ -178,7 +181,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 ipAddresses[service.Key].AddRange(addresses.Select(address => new HostIP
                 {
-                    ClusterIdentifier = localClusterIdentifier,
                     IPAddress = address.ToString(),
                     Priority = priority,
                     Weight = weight
@@ -212,16 +214,32 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 ipAddresses[ingress.Key].AddRange(addresses.Select(address => new HostIP
                 {
-                    ClusterIdentifier = localClusterIdentifier,
                     IPAddress = address.ToString(),
                     Priority = priority,
                     Weight = weight
                 }));
             }
 
+
             foreach (var host in ipAddresses)
             {
-                await _cache.SetHostIPsAsync(host.Key, host.Value.ToArray());
+                if (await _cache.SetHostIPsAsync(host.Key, localClusterIdentifier, host.Value.ToArray()))
+                {
+                    _logger.LogInformation("Host information changed for {@hostname}", host.Key);
+                    await SendHostUpdatesAsync(host.Key, host.Value.ToArray());
+                }
+            }
+
+            var myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier);
+            foreach (var host in myHosts)
+            {
+                if (!ipAddresses.ContainsKey(host))
+                {
+                    if (await _cache.SetHostIPsAsync(host, localClusterIdentifier, Array.Empty<HostIP>()))
+                    {
+                        await SendHostUpdatesAsync(host, Array.Empty<HostIP>());
+                    }
+                }
             }
         }
 
@@ -340,18 +358,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     {
                         return Task.Run(async () =>
                         {
+                            using var scope1 = _logger.BeginScope("{@peer}", peer.Url);
                             try
                             {
-                                var httpClient = new HttpClient();
-                                httpClient.BaseAddress = new Uri(peer.Url);
-                                await httpClient.PostAsync($"/api/heartbeat/{localClusterIdentifier}", JsonContent.Create(new
-                                {
-                                    HeartBeat = now
-                                }));
+                                var httpClient = _clientFactory.CreateClient(peer.Url);
+                                _logger.LogDebug("Sending heartbeat");
+                                var response = await httpClient.PostAsync($"/Heartbeat", null);
+                                response.EnsureSuccessStatusCode();
+                                _logger.LogDebug("Done");
                             }
                             catch (Exception exception)
                             {
-                                _logger.LogError("Unable to post heartbeat to {@peer}", peer);
+                                _logger.LogError(exception, "Unable to post heartbeat to {@peer}", peer);
                             }
                         }, _shutdownCancellationToken);
                     }
@@ -366,14 +384,68 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     return Task.CompletedTask;
                 });
 
-            await Task.WhenAll(heartbeatTasks);
+                await Task.WhenAll(heartbeatTasks);
+            }
+        }
+
+        private async Task SendHostUpdatesAsync(string hostname, HostIP[] hosts)
+        {
+            using var scope = _logger.BeginScope("{hostname}", hostname);
+
+            var updateTasks = _multiClusterOptions.Value.Peers.Select(peer =>
+            {
+                try
+                {
+                    return Task.Run(async () =>
+                    {
+                        using var scope1 = _logger.BeginScope("{@peer}", peer.Url);
+                        try
+                        {
+                            var httpClient = _clientFactory.CreateClient(peer.Url);
+                            var data = new Models.Api.UpdateHostModel
+                            {
+                                Hostname = hostname,
+                                HostIPs = hosts.Select(ip => new Models.Api.HostIP
+                                {
+                                    IPAddress = ip.IPAddress,
+                                    Priority = ip.Priority,
+                                    Weight = ip.Weight,
+                                }).ToArray()
+                            };
+                            _logger.LogDebug("Sending update to {@url}", peer.Url);
+                            await httpClient.PostAsync($"/Heartbeat", JsonContent.Create(data));
+                            _logger.LogDebug("Done");
+                        }
+                        catch (Exception exception)
+                        {
+                            _logger.LogError(exception, "Unable to post heartbeat");
+                        }
+                    }, _shutdownCancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    _logger.LogWarning("Shutdown requested while posting heartbeat");
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(exception, "Unexpexted exception posting heartbeat");
+                }
+                return Task.CompletedTask;
+            });
+            try
+            {
+                await Task.WhenAll(updateTasks);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Error sending host updates");
+            }
+        }
+
+        private void OnApplicationStopping()
+        {
+            _shutdownCancellationTokenSource.Cancel();
+            _shutdownEvent.WaitOne(TimeSpan.FromSeconds(5));
         }
     }
-
-    private void OnApplicationStopping()
-    {
-        _shutdownCancellationTokenSource.Cancel();
-        _shutdownEvent.WaitOne(TimeSpan.FromSeconds(5));
-    }
-}
 }
