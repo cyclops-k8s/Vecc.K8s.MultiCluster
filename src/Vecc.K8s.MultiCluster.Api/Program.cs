@@ -22,105 +22,93 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.AddSecurityDefinition(ApiAuthenticationHandlerOptions.DefaultScheme, new OpenApiSecurityScheme
+    var securityScheme = new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
         Name = "X-Api-Key",
-        Type = SecuritySchemeType.ApiKey
-    });
-
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+        Type = SecuritySchemeType.ApiKey,
+        Reference = new OpenApiReference
         {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = ApiAuthenticationHandlerOptions.DefaultScheme
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+            Type = ReferenceType.SecurityScheme,
+            Id = ApiAuthenticationHandlerOptions.DefaultScheme
+        },
+    };
+    options.AddSecurityDefinition(ApiAuthenticationHandlerOptions.DefaultScheme, securityScheme);
+    options.OperationFilter<SwaggerOperationFilter>();
 });
+
 builder.Services.AddKubernetesOperator((operatorSettings) =>
 {
     operatorSettings.EnableLeaderElection = false;
     operatorSettings.OnlyWatchEventsWhenLeader = true;
 });
 
-if (args.Contains("--orchestrator") ||
-    args.Contains("--dns-server") ||
-    args.Contains("--frontend"))
+builder.Services.AddSingleton<LeaderStatus>();
+builder.Services.AddSingleton<DefaultLeaderStateChangeObserver>();
+builder.Services.AddSingleton<DefaultDnsResolver>();
+builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
+builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
+builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
+builder.Services.AddSingleton<IHostnameSynchronizer, DefaultHostnameSynchronizer>();
+builder.Services.AddSingleton<ICache, RedisCache>();
+builder.Services.AddSingleton<IDnsHost, DefaultDnsHost>();
+builder.Services.AddSingleton<IDateTimeProvider, DefaultDateTimeProvider>();
+builder.Services.AddSingleton<IRandom, DefaultRandom>();
+builder.Services.AddSingleton<IDnsServer, DnsServer>();
+builder.Services.AddSingleton<Vecc.Dns.ILogger, DefaultDnsLogging>();
+builder.Services.AddSingleton<IDnsResolver>(sp => sp.GetRequiredService<DefaultDnsResolver>());
+builder.Services.AddScoped<ApiAuthenticationHandler>();
+builder.Services.AddSingleton<ApiAuthenticationHasher>();
+builder.Services.AddSingleton<IQueue, RedisQueue>();
+builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
+builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
+builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
+builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
+
+builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme)
+    .AddScheme<ApiAuthenticationHandlerOptions, ApiAuthenticationHandler>(ApiAuthenticationHandlerOptions.DefaultScheme, null);
+
+var options = new MultiClusterOptions();
+builder.Configuration.Bind(options);
+if (options.Peers != null)
 {
-    builder.Services.AddSingleton<LeaderStatus>();
-    builder.Services.AddSingleton<DefaultLeaderStateChangeObserver>();
-    builder.Services.AddSingleton<DefaultDnsResolver>();
-    builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
-    builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
-    builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
-    builder.Services.AddSingleton<IHostnameSynchronizer, DefaultHostnameSynchronizer>();
-    builder.Services.AddSingleton<ICache, RedisCache>();
-    builder.Services.AddSingleton<IDnsHost, DefaultDnsHost>();
-    builder.Services.AddSingleton<IDateTimeProvider, DefaultDateTimeProvider>();
-    builder.Services.AddSingleton<IRandom, DefaultRandom>();
-    builder.Services.AddSingleton<IDnsServer, DnsServer>();
-    builder.Services.AddSingleton<Vecc.Dns.ILogger, DefaultDnsLogging>();
-    builder.Services.AddSingleton<IDnsResolver>(sp => sp.GetRequiredService<DefaultDnsResolver>());
-    builder.Services.AddScoped<ApiAuthenticationHandler>();
-    builder.Services.AddSingleton<ApiAuthenticationHasher>();
-    builder.Services.AddSingleton<IQueue, RedisQueue>();
-    builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
-    builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
-    builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
-    builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
-
-    builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme)
-        .AddScheme<ApiAuthenticationHandlerOptions, ApiAuthenticationHandler>(ApiAuthenticationHandlerOptions.DefaultScheme, null);
-
-    var options = new MultiClusterOptions();
-    builder.Configuration.Bind(options);
-    if (options.Peers != null)
+    foreach (var peer in options.Peers)
     {
-        foreach (var peer in options.Peers)
+        builder.Services.AddHttpClient(peer.Url, client =>
         {
-            builder.Services.AddHttpClient(peer.Url, client =>
-            {
-                client.BaseAddress = new Uri(peer.Url);
-                client.DefaultRequestHeaders.Add("X-Api-Key", peer.Key);
-            });
-        }
-    }
-    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    {
-        //TODO: make this configurable
-        var endpoints = new EndPointCollection
-                        {
-                            new IPEndPoint(IPAddress.Loopback, 6379)
-                        };
-
-        var multiplexer = ConnectionMultiplexer.Connect(new ConfigurationOptions
-        {
-            EndPoints = endpoints
+            client.BaseAddress = new Uri(peer.Url);
+            client.DefaultRequestHeaders.Add("X-Api-Key", peer.Key);
         });
-        return multiplexer;
-    });
-
-    builder.Services.AddSingleton<IDatabase>(sp =>
-    {
-        var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
-        var database = multiplexer.GetDatabase();
-        return database;
-    });
-
-    builder.Services.AddSingleton<ISubscriber>(sp =>
-    {
-        var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
-        var subscriber = multiplexer.GetSubscriber();
-        return subscriber;
-    });
+    }
 }
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    //TODO: make this configurable
+    var endpoints = new EndPointCollection
+                    {
+                            new IPEndPoint(IPAddress.Loopback, 6379)
+                    };
+
+    var multiplexer = ConnectionMultiplexer.Connect(new ConfigurationOptions
+    {
+        EndPoints = endpoints
+    });
+    return multiplexer;
+});
+
+builder.Services.AddSingleton<IDatabase>(sp =>
+{
+    var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
+    var database = multiplexer.GetDatabase();
+    return database;
+});
+
+builder.Services.AddSingleton<ISubscriber>(sp =>
+{
+    var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
+    var subscriber = multiplexer.GetSubscriber();
+    return subscriber;
+});
 
 var app = builder.Build();
 var app2 = (IApplicationBuilder)app;
@@ -181,7 +169,7 @@ if (args.Contains("--dns-server"))
 //starts the api server
 if (args.Contains("--front-end"))
 {
-    logger.LogInformation("Running the front end");
+    logger.LogInformation("Running the front end api");
 
     if (!addedOperator)
     {
@@ -189,7 +177,6 @@ if (args.Contains("--front-end"))
         addedOperator = true;
     }
 }
-
 
 if (!addedOperator)
 {
@@ -201,3 +188,5 @@ if (!addedOperator)
 logger.LogInformation("Waiting on process tasks");
 await Task.WhenAll(processTasks);
 logger.LogInformation("Terminated");
+
+

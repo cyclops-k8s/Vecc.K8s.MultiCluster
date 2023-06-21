@@ -25,10 +25,10 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// </summary>
         /// <param name="clusterIdentifier">Cluster identifier to update the heartbeat for</param>
         /// <returns>Nothing</returns>
-        [HttpPost("")]
-        [ProducesResponseType(500)]
-        [ProducesResponseType(400)]
+        [HttpPost]
         [ProducesResponseType(204)]
+        [ProducesResponseType(401)]
+        [ProducesResponseType(500)]
         public async Task<ActionResult> Heartbeat()
         {
             var clusterIdentifier = User.Identity?.Name;
