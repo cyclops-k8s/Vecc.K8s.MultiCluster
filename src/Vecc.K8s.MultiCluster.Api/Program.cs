@@ -61,6 +61,7 @@ builder.Services.AddScoped<ApiAuthenticationHandler>();
 builder.Services.AddSingleton<ApiAuthenticationHasher>();
 builder.Services.AddSingleton<IQueue, RedisQueue>();
 builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
+builder.Services.AddHttpClient();
 builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
 builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
 builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
@@ -70,16 +71,13 @@ builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme
 
 var options = new MultiClusterOptions();
 builder.Configuration.Bind(options);
-if (options.Peers != null)
+foreach (var peer in options.Peers)
 {
-    foreach (var peer in options.Peers)
+    builder.Services.AddHttpClient(peer.Url, client =>
     {
-        builder.Services.AddHttpClient(peer.Url, client =>
-        {
-            client.BaseAddress = new Uri(peer.Url);
-            client.DefaultRequestHeaders.Add("X-Api-Key", peer.Key);
-        });
-    }
+        client.BaseAddress = new Uri(peer.Url);
+        client.DefaultRequestHeaders.Add("X-Api-Key", peer.Key);
+    });
 }
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
@@ -153,6 +151,7 @@ if (args.Contains("--dns-server"))
     logger.LogInformation("Running the dns server");
     var dnsHost = app.Services.GetRequiredService<IDnsHost>();
     var dnsResolver = app.Services.GetRequiredService<DefaultDnsResolver>();
+    await dnsResolver.InitializeAsync();
     var queue = app.Services.GetRequiredService<IQueue>();
 
     queue.OnHostChangedAsync = dnsResolver.OnHostChangedAsync;

@@ -362,6 +362,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     continue;
                 }
 
+                if (!_multiClusterOptions.Value.Peers.Any())
+                {
+                    _logger.LogTrace("No peers, not doing anything.");
+                    continue;
+                }
+
                 _logger.LogInformation("Sending heartbeat");
 
                 //set our own heartbeat
@@ -407,6 +413,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private async Task SendHostUpdatesAsync(string hostname, HostIP[] hosts)
         {
             using var scope = _logger.BeginScope("{hostname}", hostname);
+            if (!_multiClusterOptions.Value.Peers.Any())
+            {
+                return;
+            }
 
             var updateTasks = _multiClusterOptions.Value.Peers.Select(peer =>
             {

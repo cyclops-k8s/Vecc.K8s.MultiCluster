@@ -1,6 +1,10 @@
-﻿using System.Collections.Concurrent;
+﻿using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 using System.Net;
+using System.Xml.Linq;
 using Vecc.Dns;
+using Vecc.Dns.Parts;
+using Vecc.Dns.Parts.RecordData;
 using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
@@ -9,13 +13,15 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
     public class DefaultDnsResolver : IDnsResolver
     {
         private readonly ILogger<DefaultDnsHost> _logger;
+        private readonly IOptions<MultiClusterOptions> _options;
         private readonly IRandom _random;
         private readonly ICache _cache;
         private readonly ConcurrentDictionary<string, WeightedHostIp[]> _hosts;
 
-        public DefaultDnsResolver(ILogger<DefaultDnsHost> logger, IRandom random, ICache cache)
+        public DefaultDnsResolver(ILogger<DefaultDnsHost> logger, IOptions<MultiClusterOptions> options, IRandom random, ICache cache)
         {
             _logger = logger;
+            _options = options;
             _random = random;
             _cache = cache;
             _hosts = new ConcurrentDictionary<string, WeightedHostIp[]>();
@@ -27,87 +33,55 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             var result = new Packet
             {
-                Header = new Dns.Parts.Header
+                Header = new Header
                 {
                     AdditionalRecordCount = 0,
                     Authenticated = false,
                     AuthoritativeServer = false,
-                    //CheckingDisabled = false,
+                    CheckingDisabled = false,
                     Id = incoming.Header.Id,
                     OpCode = incoming.Header.OpCode,
-                    PacketType = Dns.Parts.PacketType.Response,
+                    PacketType = PacketType.Response,
                     QuestionCount = incoming.Header.QuestionCount,
                     RecursionAvailable = false,
                     RecursionDesired = incoming.Header.RecursionDesired,
-                    ResponseCode = Dns.Parts.ResponseCodes.NoError,
+                    ResponseCode = ResponseCodes.NoError,
                     Truncated = false
                 },
                 Questions = incoming.Questions
             };
 
-            var answers = new List<Dns.Parts.ResourceRecord>();
-
             foreach (var question in incoming.Questions)
             {
                 var q = question.Name.ToString();
-                if (_hosts.TryGetValue(q, out var host))
+                switch (question.QuestionType)
                 {
-                    //figure out the host ips here
-                    var highestPriority = host.Min(h => h.Priority);
-                    var hostIPs = host.Where(h => h.Priority == highestPriority).ToArray();
-                    WeightedHostIp chosenHostIP;
-
-                    if (hostIPs.Length == 0)
-                    {
-                        _logger.LogError("No host for {@hostname}", q);
-                        continue;
-                    }
-                    if (hostIPs.Length == 1)
-                    {
-                        _logger.LogTrace("Only one host, no need to calculate weights");
-                        chosenHostIP = hostIPs[0];
-                    }
-                    else
-                    {
-                        var maxWeight = hostIPs.Max(h => h.WeightMax);
-                        if (maxWeight == 0)
-                        {
-                            //no weighted hosts available, randomly choose one
-                            var max = hostIPs.Length - 1;
-                            var next = _random.Next(max);
-                            chosenHostIP = hostIPs[next];
-                        }
-                        else
-                        {
-                            //don't choose the 0 weights, they are fail over endpoints
-                            var next = _random.Next(1, maxWeight);
-                            chosenHostIP = hostIPs.Single(h => h.WeightMin <= next && h.WeightMax >= next);
-                        }
-                    }
-
-                    var ipAddress = IPAddress.Parse(chosenHostIP.IP.IPAddress);
-
-                    //TODO: support ipv6 addresses here
-                    if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    {
-                        answers.Add(new Dns.Parts.ResourceRecord
-                        {
-                            Data = new Dns.Parts.RecordData.A
-                            {
-                                Class = Dns.Parts.Classes.Internet,
-                                IPAddress = ipAddress
-                            },
-                            Name = question.Name,
-                            TTL = 5,
-                        });
-                    }
+                    case ResourceRecordTypes.A:
+                        SetARecords(q, result);
+                        break;
+                    case ResourceRecordTypes.NS:
+                        SetNSRecords(q, result);
+                        break;
                 }
+
             }
 
-            result.Answers = answers;
-            result.Header.AnswerCount =  (ushort)answers.Count;
+            result.Header.AnswerCount = (ushort)result.Answers.Count;
+            result.Header.AdditionalRecordCount = (ushort)result.AdditionalRecords.Count;
 
             return Task.FromResult<Packet?>(result);
+        }
+
+        public async Task InitializeAsync()
+        {
+            var hostnames = await _cache.GetHostnamesAsync(string.Empty);
+            if (hostnames != null)
+            {
+                foreach (var hostname in hostnames)
+                {
+                    await RefreshHostInformationAsync(hostname);
+                }
+            }
         }
 
         private async Task RefreshHostInformationAsync(string? hostname)
@@ -137,8 +111,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     weightedHostIp = new WeightedHostIp
                     {
-                        Priority = ip.Priority,
                         IP = ip,
+                        Priority = ip.Priority,
                         WeightMin = 0,
                         WeightMax = 0
                     };
@@ -159,6 +133,155 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             _hosts[hostname] = weightedIPs.ToArray();
+        }
+
+        private void SetARecords(string hostname, Packet packet)
+        {
+            if (_hosts.TryGetValue(hostname, out var host))
+            {
+                //figure out the host ips here
+                var highestPriority = host.Min(h => h.Priority);
+                var hostIPs = host.Where(h => h.Priority == highestPriority).ToArray();
+                WeightedHostIp chosenHostIP;
+
+                if (hostIPs.Length == 0)
+                {
+                    _logger.LogError("No host for {@hostname}", hostname);
+                    return;
+                }
+                if (hostIPs.Length == 1)
+                {
+                    _logger.LogTrace("Only one host, no need to calculate weights");
+                    chosenHostIP = hostIPs[0];
+                }
+                else
+                {
+                    var maxWeight = hostIPs.Max(h => h.WeightMax);
+                    if (maxWeight == 0)
+                    {
+                        //no weighted hosts available, randomly choose one
+                        var max = hostIPs.Length - 1;
+                        var next = _random.Next(max);
+                        chosenHostIP = hostIPs[next];
+                    }
+                    else
+                    {
+                        //don't choose the 0 weights, they are fail over endpoints
+                        var next = _random.Next(1, maxWeight);
+                        chosenHostIP = hostIPs.Single(h => h.WeightMin <= next && h.WeightMax >= next);
+                    }
+                }
+
+                var record = GetIPResourceRecord(hostname, chosenHostIP.IP.IPAddress);
+                if (record != null)
+                {
+                    packet.Answers.Add(record);
+                }
+            }
+        }
+
+        private void SetNSRecords(string hostname, Packet packet)
+        {
+            IEnumerable<ResourceRecord>? answers = default;
+            IEnumerable<ResourceRecord>? additionalAnswers = default;
+
+            if (_options.Value.NameserverNames.TryGetValue(hostname, out var names))
+            {
+                var moreAnswers = new List<ResourceRecord>();
+
+                answers = names.Select(name => new ResourceRecord
+                {
+                    Data = new NS
+                    {
+                        Class = Classes.Internet,
+                        Target = new Name { Value = name },
+                    },
+                    Name = new Name { Value = hostname },
+                    TTL = (uint)_options.Value.DefaultRecordTTL
+                });
+
+                foreach (var name in names)
+                {
+                    if (_hosts.TryGetValue(name, out var hosts))
+                    {
+                        var ips = new List<string>();
+                        foreach (var host in hosts)
+                        {
+                            if (!ips.Contains(host.IP.IPAddress))
+                            {
+                                var record = GetIPResourceRecord(name, host.IP.IPAddress);
+                                if (record != null)
+                                {
+                                    moreAnswers.Add(record);
+                                }
+                                ips.Add(host.IP.IPAddress);
+                            }
+                        }
+                    }
+                }
+
+                additionalAnswers = moreAnswers;
+            }
+            else
+            {
+                var answer = new ResourceRecord
+                {
+                    Name = hostname,
+                    TTL = 0,
+                    Data = new Soa
+                    {
+                        Class = Classes.Internet,
+                        Expire = 3600000,
+                        Refresh = 86400,
+                        Retry = 7200,
+                        RName = new Name { Value = _options.Value.DNSHostname },
+                        Minimum = 172800,
+                        MName = new Name { Value = _options.Value.DNSServerResponsibleEmailAddress },
+                        Serial = 1
+                    }
+                };
+                answers = new[] { answer };
+            }
+
+            if (answers != null)
+            {
+                foreach (var answer in answers)
+                {
+                    packet.Answers.Add(answer);
+                }
+            }
+
+            if (additionalAnswers != null)
+            {
+                foreach (var additionalAnswer in additionalAnswers)
+                {
+                    packet.AdditionalRecords.Add(additionalAnswer);
+                }
+            }
+        }
+
+        private ResourceRecord? GetIPResourceRecord(string hostname, string ip)
+        {
+            var ipAddress = IPAddress.Parse(ip);
+
+            //TODO: support ipv6 addresses here
+            if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                var record = new ResourceRecord
+                {
+                    Data = new A
+                    {
+                        Class = Classes.Internet,
+                        IPAddress = ipAddress
+                    },
+                    Name = new Name { Value = hostname },
+                    TTL = (uint)_options.Value.DefaultRecordTTL,
+                };
+
+                return record;
+            }
+
+            return null;
         }
 
         private struct WeightedHostIp

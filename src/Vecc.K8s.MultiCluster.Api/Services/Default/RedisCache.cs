@@ -58,12 +58,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 _logger.LogDebug("Getting all hostnames");
 
                 keys = await GetKeysAsync("hostnames.ips.*");
-                keys = keys.Select(key => key.Split('.')[2]).ToArray();
+                keys = keys.Select(key => key.Split('.', 3)[2]).ToArray();
             }
             else
             {
                 keys = await GetKeysAsync($"cluster.{clusterIdentifier}.hosts.*");
-                keys = keys.Select(key => key.Split('.')[3]).ToArray();
+                keys = keys.Select(key => key.Split('.', 4)[3]).ToArray();
             }
 
             return keys.Distinct().ToArray();
