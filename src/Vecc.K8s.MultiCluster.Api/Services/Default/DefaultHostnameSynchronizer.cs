@@ -291,6 +291,50 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return true;
         }
 
+        public async Task SynchronizeRemoteClustersAsync()
+        {
+            var peers = _multiClusterOptions.Value.Peers;
+            if (peers.Length == 0)
+            {
+                _logger.LogInformation("No peers to synchronize with.");
+                return;
+            }
+
+            foreach (var peer in peers)
+            {
+                try
+                {
+                    var client = _clientFactory.CreateClient(peer.Url);
+                    var hosts = await client.GetFromJsonAsync<Models.Api.HostModel[]?>("host");
+                    if (hosts == null)
+                    {
+                        _logger.LogError("Unable to get hosts from remote peer, result is null.");
+                        continue;
+                    }
+
+                    var currentHosts = await _cache.GetHostsAsync(peer.Identifier);
+                    if (currentHosts != null)
+                    {
+                        var hostsToRemove = currentHosts.Where(h => !hosts.Any(x => x.Hostname == h.Hostname));
+                        foreach (var host in hostsToRemove)
+                        {
+                            await _cache.RemoveClusterHostnameAsync(peer.Identifier, host.Hostname);
+                        }
+                    }
+
+                    foreach (var host in hosts)
+                    {
+                        var hostIps = host.HostIPs.Select(i => new HostIP { IPAddress = i.IPAddress, Priority = i.Priority, Weight = i.Weight }).ToArray();
+                        await _cache.SetHostIPsAsync(host.Hostname, peer.Identifier, hostIps);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Unable to synchronize remote cluster: {@clusterIdentifier}", peer.Identifier);
+                }
+            }
+        }
+
         public async Task WatchClusterHeartbeatsAsync()
         {
             while (_shutdownCancellationToken.IsCancellationRequested)
@@ -407,9 +451,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             }
                         }, _shutdownCancellationToken);
                     }
-                    catch (TaskCanceledException)
+                    catch (TaskCanceledException exception)
                     {
-                        _logger.LogWarning("Shutdown requested while posting heartbeat to {@peer}", peer);
+                        if (!_shutdownCancellationToken.IsCancellationRequested)
+                        {
+                            _logger.LogError(exception, "Unexpected task cancelled while sending heartbeat.");
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Shutdown requested while sending heartbeat to {@peer}", peer);
+                        }
                     }
                     catch (Exception exception)
                     {
@@ -417,8 +468,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                     return Task.CompletedTask;
                 });
-
-                await Task.WhenAll(heartbeatTasks);
+                try
+                {
+                    await Task.WhenAll(heartbeatTasks);
+                }
+                catch (TaskCanceledException exception)
+                {
+                    _logger.LogWarning(exception, "A task was cancelled while sending heartbeats");
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Error while handling heartbeats.");
+                    throw;
+                }
             }
         }
 
@@ -440,7 +502,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         try
                         {
                             var httpClient = _clientFactory.CreateClient(peer.Url);
-                            var data = new Models.Api.UpdateHostModel
+                            var data = new Models.Api.HostModel
                             {
                                 Hostname = hostname,
                                 HostIPs = hosts.Select(ip => new Models.Api.HostIP

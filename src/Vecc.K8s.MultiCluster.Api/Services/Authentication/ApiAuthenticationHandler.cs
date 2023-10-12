@@ -38,6 +38,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
                 Logger.LogWarning("X-Api-Key not set");
                 return AuthenticateResult.Fail("X-Api-Key not set");
             }
+
             var hash = await _hasher.GetHashAsync(key);
             var apiKey = _options.CurrentValue.ApiKeys?.FirstOrDefault(x => x.Key == hash);
             if (apiKey == null)
@@ -53,6 +54,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             var identity = new ClaimsIdentity(claims, ApiAuthenticationHandlerOptions.DefaultScheme);
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, ApiAuthenticationHandlerOptions.DefaultScheme);
+
             return AuthenticateResult.Success(ticket);
         }
     }

@@ -110,6 +110,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                     _leaderStatus.IsLeader = true;
                     await _hostnameSynchronizer.SynchronizeLocalClusterAsync();
+                    await _hostnameSynchronizer.SynchronizeRemoteClustersAsync();
                 }
                 catch (Exception exception)
                 {

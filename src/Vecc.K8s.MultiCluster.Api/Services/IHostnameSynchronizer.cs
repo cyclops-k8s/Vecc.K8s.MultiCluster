@@ -9,6 +9,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         Task<bool> SynchronizeLocalEndpointsAsync(V1Endpoints endpoints);
         Task<bool> SynchronizeLocalIngressAsync(V1Ingress ingress);
         Task<bool> SynchronizeLocalServiceAsync(V1Service service);
+        Task SynchronizeRemoteClustersAsync();
         Task WatchClusterHeartbeatsAsync();
     }
 }

@@ -1,5 +1,5 @@
-﻿using StackExchange.Redis;
-using System.Text.Json;
+﻿using Newtonsoft.Json;
+using StackExchange.Redis;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
@@ -28,7 +28,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 return null;
             }
 
-            var host = JsonSerializer.Deserialize<HostModel>((string)hostData!);
+            var host = JsonConvert.DeserializeObject<HostModel>((string)hostData!);
             if (host == null)
             {
                 _logger.LogError("{@hostname} found in cache but did not fit in the model. {@hostdata}", hostname, (string)hostData!);
@@ -37,7 +37,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             var result = new Models.Core.Host
             {
-                Hostname = hostname,
+                Hostname = host.Hostname,
                 HostIPs = host.HostIPs
             };
 
@@ -62,6 +62,39 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             return keys.Distinct().ToArray();
+        }
+
+        public async Task<Models.Core.Host[]?> GetHostsAsync(string clusterIdentifier)
+        {
+            var clusterIdentifiers = await GetClusterIdentifiersAsync();
+            if (!clusterIdentifiers.Contains(clusterIdentifier))
+            {
+                _logger.LogWarning("Cluster identifier not found while getting hosts for {@clusterIdentifier}", clusterIdentifier);
+                return null;
+            }
+
+            var keyPrefix = $"cluster.{clusterIdentifier}.hosts.";
+            var keys = await GetKeysAsync($"{keyPrefix}*");
+            var result = new List<Models.Core.Host>();
+
+            foreach (var key in keys)
+            {
+                var slugs = key.Split('.', 4);
+                if (slugs.Length != 4)
+                {
+                    _logger.LogError("Invalid key {@key} while fetching cluster hosts", key);
+                    continue;
+                }
+                var cachedHost = await _database.StringGetAsync($"{keyPrefix}{slugs[3]}");
+                var host = JsonConvert.DeserializeObject<HostModel>(cachedHost);
+                result.Add(new Models.Core.Host
+                {
+                    HostIPs = host.HostIPs,
+                    Hostname = host.Hostname
+                });
+            }
+
+            return result.ToArray();
         }
 
         public async Task<string[]> GetKeysAsync(string prefix)
@@ -90,8 +123,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             await VerifyClusterExistsAsync(clusterIdentifier);
 
             var key = $"cluster.{clusterIdentifier}.hosts.{hostname}";
-            var hostModel = new HostModel { HostIPs = hostIPs };
-            var ips = JsonSerializer.Serialize(hostModel);
+            var hostModel = new HostModel
+            {
+                HostIPs = hostIPs,
+                Hostname = hostname,
+                ClusterIdentifier = clusterIdentifier
+            };
+            var ips = JsonConvert.SerializeObject(hostModel);
             var oldConfig = await _database.StringGetAsync(key);
 
             if (!oldConfig.HasValue || oldConfig != ips)
@@ -226,7 +264,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 var value = (string?)clusterIps;
                 if (value != null)
                 {
-                    var hostModel = JsonSerializer.Deserialize<HostModel>(value);
+                    var hostModel = JsonConvert.DeserializeObject<HostModel>(value);
                     if (hostModel == null)
                     {
                         _logger.LogError("Serialized host data does not fit the hostmodel type. {@serialized}", value);
@@ -245,10 +283,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             key = $"hostnames.ips.{hostname}";
             var host = new HostModel
             {
+                Hostname = hostname,
                 HostIPs = ipList.ToArray()
             };
 
-            var ips = JsonSerializer.Serialize<HostModel>(host);
+            var ips = JsonConvert.SerializeObject(host);
             var status = await _database.StringSetAsync(key, ips);
             if (!status)
             {
@@ -293,6 +332,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         private class HostModel
         {
+            public string ClusterIdentifier { get; set; } = string.Empty;
+            public string Hostname { get; set; } = string.Empty;
             public HostIP[] HostIPs { get; set; } = Array.Empty<HostIP>();
         }
     }

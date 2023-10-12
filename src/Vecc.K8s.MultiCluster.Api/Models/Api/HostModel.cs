@@ -2,7 +2,7 @@
 
 namespace Vecc.K8s.MultiCluster.Api.Models.Api
 {
-    public class UpdateHostModel
+    public class HostModel
     {
         [Required(AllowEmptyStrings = false)]
         public string Hostname { get; set; } = string.Empty;
