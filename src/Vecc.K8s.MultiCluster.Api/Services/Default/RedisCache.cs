@@ -1,11 +1,6 @@
-﻿using k8s.Models;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.IdentityModel.Tokens;
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
-using YamlDotNet.Core.Tokens;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
@@ -149,6 +144,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        public async Task<string> GetLastResourceVersionAsync(string uniqueIdentifier)
+        {
+            var result = await _database.StringGetAsync($"resourceversion.{uniqueIdentifier}");
+
+            if (!result.HasValue)
+            {
+                return string.Empty;
+            }
+
+            return result!;
+        }
+
         public async Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname)
         {
             var key = $"cluster.{clusterIdentifier}.hosts.{hostname}";
@@ -157,6 +164,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             await RefreshHostnameIps(hostname);
 
             return;
+        }
+
+        public async Task<bool> RemoveClusterIdentifierAsync(string clusterIdentifier)
+        {
+            var clusterIdentifiers = await GetClusterIdentifiersAsync();
+            if (!clusterIdentifiers.Contains(clusterIdentifier))
+            {
+                var identifiers = string.Join('\t', clusterIdentifiers.Where(i => i.ToLowerInvariant() != clusterIdentifier.ToLowerInvariant()));
+                await _database.StringSetAsync("clusteridentifiers", identifiers);
+                return true;
+            }
+            return false;
         }
 
         public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
@@ -170,16 +189,28 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             await _database.StringSetAsync($"resourceversion.{uniqueIdentifier}", version);
         }
 
-        public async Task<string> GetLastResourceVersionAsync(string uniqueIdentifier)
+        public async Task SynchronizeCachesAsync()
         {
-            var result = await _database.StringGetAsync($"resourceversion.{uniqueIdentifier}");
+            var clusterIdentifiers = await GetClusterIdentifiersAsync();
+            var clusterKeys = await GetKeysAsync("cluster.*");
 
-            if (!result.HasValue)
+            foreach (var key in clusterKeys)
             {
-                return string.Empty;
+                var slugs = key.Split('.', 4);
+                var clusterIdentifier = slugs[1];
+                if (!clusterIdentifiers.Contains(clusterIdentifier))
+                {
+                    await RemoveClusterIdentifierAsync(clusterIdentifier);
+                    if (slugs.Length == 4 && slugs[2] == "hosts")
+                    {
+                        await RemoveClusterHostnameAsync(clusterIdentifier, slugs[3]);
+                    }
+                    else
+                    {
+                        await _database.KeyDeleteAsync(key);
+                    }
+                }
             }
-
-            return result!;
         }
 
         private async Task RefreshHostnameIps(string hostname)

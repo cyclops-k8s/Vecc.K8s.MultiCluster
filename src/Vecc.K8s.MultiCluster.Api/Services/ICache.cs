@@ -13,6 +13,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname);
         Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat);
         Task<bool> IsServiceMonitoredAsync(string ns, string name);
+        Task SynchronizeCachesAsync();
         Task TrackServiceAsync(string ns, string name);
         Task UntrackAllServicesAsync();
         Task SetResourceVersionAsync(string uniqueIdentifier, string version);

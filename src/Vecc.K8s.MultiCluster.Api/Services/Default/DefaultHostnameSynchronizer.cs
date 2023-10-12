@@ -338,6 +338,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     _logger.LogError(exception, "Error checking cluster heartbeats");
                 }
+
+                try
+                {
+                    _logger.LogInformation("Making sure stale records are not in the cache");
+                    await _cache.SynchronizeCachesAsync();
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Error cleaning stale records in the cache");
+                }
+
+                _logger.LogInformation("Removing stale IP addresses");
             }
 
             _shutdownEvent.Set();
