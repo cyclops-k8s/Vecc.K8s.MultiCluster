@@ -7,6 +7,7 @@ namespace Vecc.K8s.MultiCluster.Api.Models.Core
         public string IPAddress { get; set; } = string.Empty;
         public int Priority { get; set; }
         public int Weight { get; set; }
+        public string ClusterIdentifier { get; set; } = string.Empty;
 
         public override bool Equals(object? obj)
         {
@@ -19,7 +20,8 @@ namespace Vecc.K8s.MultiCluster.Api.Models.Core
             {
                 if (IPAddress == hostIp.IPAddress &&
                     Weight == hostIp.Weight &&
-                    Priority == hostIp.Priority)
+                    Priority == hostIp.Priority &&
+                    ClusterIdentifier == hostIp.ClusterIdentifier)
                 {
                     return true;
                 }

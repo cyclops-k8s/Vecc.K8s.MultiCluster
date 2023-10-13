@@ -194,7 +194,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     {
                         IPAddress = address.ToString(),
                         Priority = priority,
-                        Weight = weight
+                        Weight = weight,
+                        ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
                     }));
                 }
 
@@ -227,7 +228,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     {
                         IPAddress = address.ToString(),
                         Priority = priority,
-                        Weight = weight
+                        Weight = weight,
+                        ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
                     }));
                 }
 
@@ -324,7 +326,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                     foreach (var host in hosts)
                     {
-                        var hostIps = host.HostIPs.Select(i => new HostIP { IPAddress = i.IPAddress, Priority = i.Priority, Weight = i.Weight }).ToArray();
+                        var hostIps = host.HostIPs.Select(i => new HostIP
+                        {
+                            IPAddress = i.IPAddress,
+                            Priority = i.Priority,
+                            Weight = i.Weight,
+                            ClusterIdentifier = peer.Identifier
+                        }).ToArray();
                         await _cache.SetHostIPsAsync(host.Hostname, peer.Identifier, hostIps);
                     }
                 }
@@ -509,7 +517,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                                 {
                                     IPAddress = ip.IPAddress,
                                     Priority = ip.Priority,
-                                    Weight = ip.Weight,
+                                    Weight = ip.Weight
                                 }).ToArray()
                             };
                             _logger.LogDebug("Sending update to {@url}", peer.Url);

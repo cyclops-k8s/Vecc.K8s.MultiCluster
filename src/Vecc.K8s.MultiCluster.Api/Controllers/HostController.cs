@@ -55,7 +55,8 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     {
                         IPAddress = ip.IPAddress,
                         Priority = ip.Priority,
-                        Weight = ip.Weight
+                        Weight = ip.Weight,
+                        ClusterIdentifier = clusterIdentifier
                     }).ToArray();
                 }
 

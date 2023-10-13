@@ -107,6 +107,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             foreach (var ip in hostInformation.HostIPs)
             {
                 WeightedHostIp weightedHostIp;
+                if (!IPAddress.TryParse(ip.IPAddress, out var ipAddress))
+                {
+                    _logger.LogWarning("IPAddress is not parseable {@hostname} {@clusterIdentifier} {@ip}", hostname, ip.ClusterIdentifier, ip.IPAddress);
+                }
                 if (ip.Weight == 0)
                 {
                     weightedHostIp = new WeightedHostIp
@@ -177,6 +181,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     packet.Answers.Add(record);
                 }
+            }
+            else
+            {
+                _logger.LogInformation("Unknown host: {@hostname}", hostname);
             }
         }
 
