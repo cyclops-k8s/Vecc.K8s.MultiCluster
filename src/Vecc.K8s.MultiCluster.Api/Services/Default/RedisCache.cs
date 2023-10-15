@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis;
+﻿using NewRelic.Api.Agent;
+using StackExchange.Redis;
 using System.Text.Json;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
@@ -17,6 +18,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _queue = queue;
         }
 
+        [Trace]
         public async Task<Models.Core.Host?> GetHostInformationAsync(string hostname)
         {
             var key = $"hostnames.ips.{hostname}";
@@ -44,6 +46,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public async Task<string[]> GetHostnamesAsync(string clusterIdentifier)
         {
             var keys = Array.Empty<string>();
@@ -64,6 +67,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return keys.Distinct().ToArray();
         }
 
+        [Trace]
         public async Task<Models.Core.Host[]?> GetHostsAsync(string clusterIdentifier)
         {
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
@@ -109,6 +113,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result.ToArray();
         }
 
+        [Trace]
         public async Task<string[]> GetKeysAsync(string prefix)
         {
             var allKeys = await _database.ExecuteAsync("KEYS", prefix);
@@ -123,12 +128,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
-        /// <summary>
-        /// Sets the hostname in the credis cache. Returns whether the host was updated or not.
-        /// </summary>
-        /// <param name="hostname"></param>
-        /// <param name="hostIPs"></param>
-        /// <returns></returns>
+        [Trace]
         public async Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs)
         {
             var result = false;
@@ -164,6 +164,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public async Task<string[]> GetClusterIdentifiersAsync()
         {
             var identifierResult = await _database.StringGetAsync("clusteridentifiers");
@@ -180,6 +181,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public async Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
         {
             var heartbeat = await _database.StringGetAsync($"cluster.{clusterIdentifier}.heartbeat");
@@ -194,6 +196,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        [Trace]
         public async Task<string> GetLastResourceVersionAsync(string uniqueIdentifier)
         {
             var result = await _database.StringGetAsync($"resourceversion.{uniqueIdentifier}");
@@ -206,6 +209,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result!;
         }
 
+        [Trace]
         public async Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname)
         {
             var key = $"cluster.{clusterIdentifier}.hosts.{hostname}";
@@ -216,6 +220,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return;
         }
 
+        [Trace]
         public async Task<bool> RemoveClusterIdentifierAsync(string clusterIdentifier)
         {
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
@@ -228,17 +233,20 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return false;
         }
 
+        [Trace]
         public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
         {
             var key = $"cluster.{clusterIdentifier}.heartbeat";
             await _database.StringSetAsync(clusterIdentifier, heartbeat.ToString("O"));
         }
 
+        [Trace]
         public async Task SetResourceVersionAsync(string uniqueIdentifier, string version)
         {
             await _database.StringSetAsync($"resourceversion.{uniqueIdentifier}", version);
         }
 
+        [Trace]
         public async Task SynchronizeCachesAsync()
         {
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
@@ -300,7 +308,32 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
         }
+        [Trace]
+        public async Task<bool> IsServiceMonitoredAsync(string ns, string name)
+        {
+            var cached = await _database.StringGetAsync($"trackedservices.{ns}.{name}");
+            var result = cached.HasValue;
 
+            return result;
+        }
+
+        [Trace]
+        public async Task TrackServiceAsync(string ns, string name)
+        {
+            await _database.StringSetAsync($"trackedservices.{ns}.{name}", "yes");
+        }
+
+        [Trace]
+        public async Task UntrackAllServicesAsync()
+        {
+            var keys = await GetKeysAsync("trackedservices.*");
+            foreach (var key in keys)
+            {
+                await _database.KeyDeleteAsync(key);
+            }
+        }
+
+        [Trace]
         private async Task RefreshHostnameIps(string hostname)
         {
             string key;
@@ -348,6 +381,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             await _queue.PublishHostChangedAsync(hostname);
         }
 
+        [Trace]
         private async Task VerifyClusterExistsAsync(string clusterIdentifier)
         {
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
@@ -358,27 +392,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
-        public async Task<bool> IsServiceMonitoredAsync(string ns, string name)
-        {
-            var cached = await _database.StringGetAsync($"trackedservices.{ns}.{name}");
-            var result = cached.HasValue;
-
-            return result;
-        }
-
-        public async Task TrackServiceAsync(string ns, string name)
-        {
-            await _database.StringSetAsync($"trackedservices.{ns}.{name}", "yes");
-        }
-
-        public async Task UntrackAllServicesAsync()
-        {
-            var keys = await GetKeysAsync("trackedservices.*");
-            foreach (var key in keys)
-            {
-                await _database.KeyDeleteAsync(key);
-            }
-        }
 
         private class HostModel
         {

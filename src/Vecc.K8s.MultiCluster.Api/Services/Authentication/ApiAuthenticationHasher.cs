@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using NewRelic.Api.Agent;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -13,6 +14,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             _clusterOptions = clusterOptions;
         }
 
+        [Trace]
         public async Task<string> GetHashAsync(string key)
         {
             using var hasher = SHA512.Create();
@@ -25,6 +27,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             return result;
         }
 
+        [Trace]
         public async Task<byte[]> GenerateSaltAsync()
         {
             using var generator = RandomNumberGenerator.Create();

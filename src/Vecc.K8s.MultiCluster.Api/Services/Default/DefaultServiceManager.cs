@@ -1,6 +1,7 @@
 ﻿using k8s;
 using k8s.Models;
 using KubeOps.KubernetesClient;
+using NewRelic.Api.Agent;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
@@ -17,6 +18,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _namespaceManager = namespaceManager;
         }
 
+        [Trace]
         public async Task<List<V1Service>> GetServicesAsync(string? ns)
         {
             if (string.IsNullOrWhiteSpace(ns))
@@ -37,6 +39,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public Task<List<V1Service>> GetLoadBalancerEndpointsAsync(IList<V1Service> services)
         {
             _logger.LogInformation("Finding load balancer services");
@@ -46,6 +49,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult(result);
         }
 
+        [Trace]
         public Task<Dictionary<string, IList<V1Service>>> GetAvailableHostnamesAsync(IList<V1Service> allServices, IList<V1Endpoints> allEndpoints)
         {
             var result = new Dictionary<string, IList<V1Service>>();
@@ -109,6 +113,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult(result);
         }
 
+        [Trace]
         public async Task<List<V1Endpoints>> GetEndpointsAsync(string? ns)
         {
             if (string.IsNullOrWhiteSpace(ns))
@@ -128,6 +133,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         private async Task<List<V1Service>> GetServicesAsync()
         {
             var namespaces = await _namespaceManager.GetNamsepacesAsync();
@@ -149,6 +155,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         private async Task<List<V1Endpoints>> GetEndpointsAsync()
         {
             var namespaces = await _namespaceManager.GetNamsepacesAsync();

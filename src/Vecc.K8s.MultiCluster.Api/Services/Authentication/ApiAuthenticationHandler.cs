@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+using NewRelic.Api.Agent;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 
@@ -23,6 +24,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             _hasher = hasher;
         }
 
+        [Trace]
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
         {
             var keyHeader = StringValues.Empty;

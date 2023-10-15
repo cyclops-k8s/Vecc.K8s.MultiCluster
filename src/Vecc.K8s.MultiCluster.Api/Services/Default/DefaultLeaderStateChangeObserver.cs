@@ -1,4 +1,5 @@
 ﻿using KubeOps.Operator.Leadership;
+using NewRelic.Api.Agent;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
@@ -109,8 +110,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     _logger.LogInformation("I'm the new leader");
 
                     _leaderStatus.IsLeader = true;
-                    await _hostnameSynchronizer.SynchronizeLocalClusterAsync();
-                    await _hostnameSynchronizer.SynchronizeRemoteClustersAsync();
+                    await OnLeaderElected();
                 }
                 catch (Exception exception)
                 {
@@ -119,6 +119,14 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 _leaderStateChangeEvent.Reset();
             }
+        }
+
+        //TODO: Is there a way in the new relic agent to enforce that this transaction is recorded every time?
+        [Transaction]
+        private async Task OnLeaderElected()
+        {
+            await _hostnameSynchronizer.SynchronizeLocalClusterAsync();
+            await _hostnameSynchronizer.SynchronizeRemoteClustersAsync();
         }
     }
 }

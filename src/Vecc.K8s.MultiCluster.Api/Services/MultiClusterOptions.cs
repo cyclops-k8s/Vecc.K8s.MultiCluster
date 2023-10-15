@@ -7,6 +7,7 @@
         public int HeartbeatCheckInterval { get; set; } = 1;
         public int HeartbeatSetInterval { get; set; } = 10;
         public PeerHosts[] Peers { get; set; } = Array.Empty<PeerHosts>();
+        [Sensitive]
         public byte[] ClusterSalt { get; set; } = Array.Empty<byte>();
         public Dictionary<string, string[]> NameserverNames { get; set; } = new Dictionary<string, string[]>();
         public int DefaultRecordTTL { get; set; } = 5;

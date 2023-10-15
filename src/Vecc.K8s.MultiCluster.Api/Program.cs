@@ -9,6 +9,7 @@ using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
+using Destructurama;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) =>
@@ -18,9 +19,11 @@ builder.Host.UseSerilog((context, configuration) =>
                  .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
                  .MinimumLevel.Override("Vecc", Serilog.Events.LogEventLevel.Verbose)
                  .MinimumLevel.Override("Vecc.K8s.MultiCluster.Api.Services.Default.DefaultDnsLogging", Serilog.Events.LogEventLevel.Information)
-                 .MinimumLevel.Override("Vecc.K8s.MultiCluster.Api.Services.Authentication.ApiAuthenticationHandler", Serilog.Events.LogEventLevel.Information);
+                 .MinimumLevel.Override("Vecc.K8s.MultiCluster.Api.Services.Authentication.ApiAuthenticationHandler", Serilog.Events.LogEventLevel.Information)
+                 .Destructure.UsingAttributes();
     configuration.WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter());
 });
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -128,6 +131,7 @@ app.MapWhen(context => !controllerPaths.Any(path => context.Request.Path.StartsW
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Starting");
+logger.LogInformation("Configured Options {@options}", options);
 
 var processTasks = new List<Task>();
 var addedOperator = false;

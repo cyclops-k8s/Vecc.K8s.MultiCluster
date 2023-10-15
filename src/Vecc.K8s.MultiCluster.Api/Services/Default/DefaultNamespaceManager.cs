@@ -1,5 +1,6 @@
 ﻿using k8s.Models;
 using KubeOps.KubernetesClient;
+using NewRelic.Api.Agent;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
@@ -14,6 +15,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _kubernetesClient = kubernetesClient;
         }
 
+        [Trace]
         public async Task<IList<V1Namespace>> GetNamsepacesAsync()
         {
             var result = new List<V1Namespace>();

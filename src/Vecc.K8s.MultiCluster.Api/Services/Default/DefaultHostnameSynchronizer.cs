@@ -1,5 +1,6 @@
 ﻿using k8s.Models;
 using Microsoft.Extensions.Options;
+using NewRelic.Api.Agent;
 using System.Net;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
@@ -48,6 +49,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _synchronizeLocalClusterHolder = new ManualResetEvent(true);
         }
 
+        [Trace]
         public async Task SynchronizeLocalClusterAsync()
         {
             _synchronizeLocalClusterHolder.WaitOne(5000);
@@ -233,7 +235,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }));
                 }
 
-
                 foreach (var host in ipAddresses)
                 {
                     if (await _cache.SetHostIPsAsync(host.Key, localClusterIdentifier, host.Value.ToArray()))
@@ -261,6 +262,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        [Trace]
         public async Task<bool> SynchronizeLocalIngressAsync(V1Ingress ingress)
         {
             //TODO: we need to cache the service/ingress and state of the service object related to a hostname
@@ -274,6 +276,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return true;
         }
 
+        [Trace]
         public async Task<bool> SynchronizeLocalServiceAsync(V1Service service)
         {
             //TODO: see SynchronizeLocalIngressAsync
@@ -284,6 +287,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return true;
         }
 
+        [Trace]
         public async Task<bool> SynchronizeLocalEndpointsAsync(V1Endpoints endpoints)
         {
             _logger.LogInformation("Synchronizing local cluster ingress {@namespace}/{@ingress}", endpoints.Namespace(), endpoints.Name());
@@ -293,6 +297,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return true;
         }
 
+        [Trace]
         public async Task SynchronizeRemoteClustersAsync()
         {
             var peers = _multiClusterOptions.Value.Peers;
@@ -343,6 +348,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        [Trace]
         public async Task WatchClusterHeartbeatsAsync()
         {
             while (_shutdownCancellationToken.IsCancellationRequested)
@@ -426,72 +432,79 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     continue;
                 }
 
-                if (!_multiClusterOptions.Value.Peers.Any())
-                {
-                    _logger.LogTrace("No peers, not doing anything.");
-                    continue;
-                }
 
-                _logger.LogInformation("Sending heartbeat");
-
-                //set our own heartbeat
-                var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
-                var now = _dateTimeProvider.UtcNow;
-                await _cache.SetClusterHeartbeatAsync(localClusterIdentifier, now);
-                var heartbeatTasks = _multiClusterOptions.Value.Peers.Select(peer =>
-                {
-                    try
-                    {
-                        return Task.Run(async () =>
-                        {
-                            using var scope1 = _logger.BeginScope("{@peer}", peer.Url);
-                            try
-                            {
-                                var httpClient = _clientFactory.CreateClient(peer.Url);
-                                _logger.LogDebug("Sending heartbeat");
-                                var response = await httpClient.PostAsync($"/Heartbeat", null);
-                                response.EnsureSuccessStatusCode();
-                                _logger.LogDebug("Done");
-                            }
-                            catch (Exception exception)
-                            {
-                                _logger.LogError(exception, "Unable to post heartbeat to {@peer}", peer);
-                            }
-                        }, _shutdownCancellationToken);
-                    }
-                    catch (TaskCanceledException exception)
-                    {
-                        if (!_shutdownCancellationToken.IsCancellationRequested)
-                        {
-                            _logger.LogError(exception, "Unexpected task cancelled while sending heartbeat.");
-                        }
-                        else
-                        {
-                            _logger.LogInformation("Shutdown requested while sending heartbeat to {@peer}", peer);
-                        }
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.LogWarning(exception, "Unexpexted exception posting heartbeat to {@peer}", peer);
-                    }
-                    return Task.CompletedTask;
-                });
-                try
-                {
-                    await Task.WhenAll(heartbeatTasks);
-                }
-                catch (TaskCanceledException exception)
-                {
-                    _logger.LogWarning(exception, "A task was cancelled while sending heartbeats");
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogError(exception, "Error while handling heartbeats.");
-                    throw;
-                }
+                await SendHeartbeats();
             }
         }
 
+        [Transaction]
+        private async Task SendHeartbeats()
+        {
+            if (!_multiClusterOptions.Value.Peers.Any())
+            {
+                _logger.LogTrace("No peers, not doing anything.");
+                return;
+            }
+
+            _logger.LogInformation("Sending heartbeat");
+            //set our own heartbeat
+            var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
+            var now = _dateTimeProvider.UtcNow;
+            await _cache.SetClusterHeartbeatAsync(localClusterIdentifier, now);
+            var heartbeatTasks = _multiClusterOptions.Value.Peers.Select(peer =>
+            {
+                try
+                {
+                    return Task.Run(async () =>
+                    {
+                        using var scope1 = _logger.BeginScope("{@peer}", peer.Url);
+                        try
+                        {
+                            var httpClient = _clientFactory.CreateClient(peer.Url);
+                            _logger.LogDebug("Sending heartbeat");
+                            var response = await httpClient.PostAsync($"/Heartbeat", null);
+                            response.EnsureSuccessStatusCode();
+                            _logger.LogDebug("Done");
+                        }
+                        catch (Exception exception)
+                        {
+                            _logger.LogError(exception, "Unable to post heartbeat to {@peer}", peer);
+                        }
+                    }, _shutdownCancellationToken);
+                }
+                catch (TaskCanceledException exception)
+                {
+                    if (!_shutdownCancellationToken.IsCancellationRequested)
+                    {
+                        _logger.LogError(exception, "Unexpected task cancelled while sending heartbeat.");
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Shutdown requested while sending heartbeat to {@peer}", peer);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(exception, "Unexpexted exception posting heartbeat to {@peer}", peer);
+                }
+                return Task.CompletedTask;
+            });
+            try
+            {
+                await Task.WhenAll(heartbeatTasks);
+            }
+            catch (TaskCanceledException exception)
+            {
+                _logger.LogWarning(exception, "A task was cancelled while sending heartbeats");
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Error while handling heartbeats.");
+                throw;
+            }
+        }
+
+        [Trace]
         private async Task SendHostUpdatesAsync(string hostname, HostIP[] hosts)
         {
             using var scope = _logger.BeginScope("{hostname}", hostname);

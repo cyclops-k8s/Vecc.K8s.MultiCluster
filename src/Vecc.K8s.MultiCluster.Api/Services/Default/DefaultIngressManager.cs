@@ -1,5 +1,6 @@
 ﻿using k8s.Models;
 using KubeOps.KubernetesClient;
+using NewRelic.Api.Agent;
 using System.Data;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
@@ -19,6 +20,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _serviceManager = serviceManager;
         }
 
+        [Trace]
         public async Task<IList<V1Ingress>> GetAllIngressesAsync(string? ns)
         {
             var result = new List<V1Ingress>();
@@ -38,6 +40,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public async Task<IList<V1Ingress>> GetValidIngressesAsync(string? ns)
         {
             var result = new List<V1Ingress>();
@@ -77,6 +80,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public Task<Dictionary<string, IList<V1Ingress>>> GetAvailableHostnamesAsync(
             IList<V1Ingress> allIngresses,
             IList<V1Service> allServices,
@@ -157,6 +161,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult(result);
         }
 
+        [Trace]
         public bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, IList<V1Endpoints> endpoints)
         {
             if (ingress.Status == null)
@@ -263,6 +268,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
+        [Trace]
         public Task<IList<string>> GetRelatedServiceNamesAsync(V1Ingress ingress)
         {
             var ns = ingress.Namespace();
@@ -272,6 +278,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult<IList<string>>(result);
         }
 
+        [Trace]
         private bool IsBackendValid(V1HTTPIngressPath path)
         {
             if (path.Backend == null)
@@ -301,6 +308,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return true;
         }
 
+        [Trace]
         private List<V1IngressRule> GetValidIngressRules(IList<V1IngressRule> rules)
         {
             var result = new List<V1IngressRule>();
@@ -348,6 +356,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         }
 
+        [Trace]
         private async Task<IList<V1Ingress>> GetAllIngressesAsync()
         {
             var namespaces = await _namespaceManager.GetNamsepacesAsync();

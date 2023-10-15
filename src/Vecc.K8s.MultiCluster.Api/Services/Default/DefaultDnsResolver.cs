@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using NewRelic.Api.Agent;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Xml.Linq;
@@ -29,6 +30,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         public OnHostChangedAsyncDelegate OnHostChangedAsync => new OnHostChangedAsyncDelegate(RefreshHostInformationAsync);
 
+        [Transaction]
         public Task<Packet?> ResolveAsync(Packet incoming)
         {
             var result = new Packet
@@ -72,6 +74,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult<Packet?>(result);
         }
 
+        [Transaction]
         public async Task InitializeAsync()
         {
             var hostnames = await _cache.GetHostnamesAsync(string.Empty);
@@ -84,6 +87,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        [Transaction]
         private async Task RefreshHostInformationAsync(string? hostname)
         {
             _logger.LogInformation("{@hostname} updated, refreshing state.", hostname);
@@ -139,6 +143,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _hosts[hostname] = weightedIPs.ToArray();
         }
 
+        [Trace]
         private void SetARecords(string hostname, Packet packet)
         {
             if (_hosts.TryGetValue(hostname, out var host))
@@ -188,6 +193,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        [Trace]
         private void SetNSRecords(string hostname, Packet packet)
         {
             IEnumerable<ResourceRecord>? answers = default;
@@ -268,6 +274,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
         }
 
+        [Trace]
         private ResourceRecord? GetIPResourceRecord(string hostname, string ip)
         {
             var ipAddress = IPAddress.Parse(ip);
