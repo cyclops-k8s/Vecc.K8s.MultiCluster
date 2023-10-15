@@ -12,16 +12,12 @@ using Vecc.K8s.MultiCluster.Api.Services.Default;
 using Destructurama;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.logging.json");
+
 builder.Host.UseSerilog((context, configuration) =>
 {
-    configuration.MinimumLevel.Information()
-                 .MinimumLevel.Override("KubeOps", Serilog.Events.LogEventLevel.Warning)
-                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
-                 .MinimumLevel.Override("Vecc", Serilog.Events.LogEventLevel.Verbose)
-                 .MinimumLevel.Override("Vecc.K8s.MultiCluster.Api.Services.Default.DefaultDnsLogging", Serilog.Events.LogEventLevel.Information)
-                 .MinimumLevel.Override("Vecc.K8s.MultiCluster.Api.Services.Authentication.ApiAuthenticationHandler", Serilog.Events.LogEventLevel.Information)
+    configuration.ReadFrom.Configuration(context.Configuration)
                  .Destructure.UsingAttributes();
-    configuration.WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter());
 });
 
 builder.Services.AddControllers();
