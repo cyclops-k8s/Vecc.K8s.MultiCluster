@@ -246,7 +246,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 if (!status)
                 {
-                    //TODO: Implement retry logic for redis cache
                     _logger.LogError("Unable to update ips for host {@hostname}", hostname);
                 }
             }
