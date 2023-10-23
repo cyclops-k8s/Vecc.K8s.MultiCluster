@@ -85,7 +85,7 @@ foreach (var peer in options.Peers)
 }
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
-    var connectionString = sp.GetRequiredService<IConfigurationRoot>().GetConnectionString("Redis");
+    var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("Redis");
     ConfigurationOptions configurationOptions;
 
     if (connectionString == null && builder.Environment.IsDevelopment())
