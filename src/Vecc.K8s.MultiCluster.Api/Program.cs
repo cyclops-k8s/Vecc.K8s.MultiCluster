@@ -10,6 +10,8 @@ using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
 using Destructurama;
+using k8s.Models;
+using System.Diagnostics.Eventing.Reader;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.logging.json");
@@ -83,16 +85,25 @@ foreach (var peer in options.Peers)
 }
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
-    //TODO: make this configurable
-    var endpoints = new EndPointCollection
-                    {
-                            new IPEndPoint(IPAddress.Loopback, 6379)
-                    };
+    var connectionString = sp.GetRequiredService<IConfigurationRoot>().GetConnectionString("Redis");
+    ConfigurationOptions configurationOptions;
 
-    var multiplexer = ConnectionMultiplexer.Connect(new ConfigurationOptions
+    if (connectionString == null && builder.Environment.IsDevelopment())
     {
-        EndPoints = endpoints
-    });
+        var endpoints = new EndPointCollection { new IPEndPoint(IPAddress.Loopback, 6379) };
+        configurationOptions = new ConfigurationOptions{ EndPoints = endpoints };
+    }
+    else
+    {
+        if (connectionString == null)
+        {
+            var logger = sp.GetRequiredService<ILogger<Program>>();
+            throw new Exception("Redis connection string must be set.");
+        }
+        configurationOptions = ConfigurationOptions.Parse(connectionString);
+    }
+
+    var multiplexer = ConnectionMultiplexer.Connect(configurationOptions);
     return multiplexer;
 });
 
