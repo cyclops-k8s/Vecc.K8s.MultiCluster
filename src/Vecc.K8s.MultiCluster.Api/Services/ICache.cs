@@ -5,15 +5,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services
     public interface ICache
     {
         Task<string[]> GetClusterIdentifiersAsync();
-        Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs);
+        Task<int> GetEndpointsCountAsync(string ns, string name);
         Task<Models.Core.Host?> GetHostInformationAsync(string hostname);
         Task<string[]> GetHostnamesAsync(string clusterIdentifier);
         Task<Models.Core.Host[]?> GetHostsAsync(string clusterIdentifier);
-        Task<string[]> GetKeysAsync(string prefix);
         Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier);
+        Task<bool> IsServiceMonitoredAsync(string ns, string name);
         Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname);
         Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat);
-        Task<bool> IsServiceMonitoredAsync(string ns, string name);
+        Task SetEndpointsCountAsync(string ns, string name, int count);
+        Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs);
         Task SynchronizeCachesAsync();
         Task TrackServiceAsync(string ns, string name);
         Task UntrackAllServicesAsync();

@@ -18,10 +18,23 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _queue = queue;
         }
 
+        public async Task<int> GetEndpointsCountAsync(string ns, string name)
+        {
+            var key = GetEndpointKey(ns, name);
+            var count = await _database.StringGetAsync(key);
+
+            if (int.TryParse(count, out var result))
+            {
+                return result;
+            }
+
+            return 0;
+        }
+
         [Trace]
         public async Task<Models.Core.Host?> GetHostInformationAsync(string hostname)
         {
-            var key = $"hostnames.ips.{hostname}";
+            var key = GetHostnameIpsKey(hostname);
             var hostData = await _database.StringGetAsync(key);
 
             if (!hostData.HasValue)
@@ -47,6 +60,40 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
+        public async Task<string[]> GetClusterIdentifiersAsync()
+        {
+            var key = GetClusterIdentifiersKey();
+            var identifierResult = await _database.StringGetAsync(key);
+
+            if (!identifierResult.HasValue)
+            {
+                _logger.LogWarning("No cluster identifiers found, expected on first run.");
+                return Array.Empty<string>();
+            }
+
+            var identifiers = (string)identifierResult!;
+            var result = identifiers.Split('\t');
+
+            return result;
+        }
+
+        [Trace]
+        public async Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
+        {
+            var key = GetClusterHeartbeatKey(clusterIdentifier);
+            var heartbeat = await _database.StringGetAsync(key);
+            if (DateTime.TryParseExact(heartbeat, "O", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
+            {
+                return result;
+            }
+            else
+            {
+                _logger.LogError("Unable to parse heartbeat {@heartbeat} for cluster {@clusteridentifier}", (string?)heartbeat, clusterIdentifier);
+                return default;
+            }
+        }
+
+        [Trace]
         public async Task<string[]> GetHostnamesAsync(string clusterIdentifier)
         {
             var keys = Array.Empty<string>();
@@ -54,13 +101,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             if (string.IsNullOrWhiteSpace(clusterIdentifier))
             {
                 _logger.LogDebug("Getting all hostnames");
-
-                keys = await GetKeysAsync("hostnames.ips.*");
+                var key = GetHostnameIpsKey("*");
+                keys = await GetKeysAsync(key);
                 keys = keys.Select(key => key.Split('.', 3)[2]).ToArray();
             }
             else
             {
-                keys = await GetKeysAsync($"cluster.{clusterIdentifier}.hosts.*");
+                keys = await GetKeysAsync(GetClusterHostnameIpsKey(clusterIdentifier, "*"));
                 keys = keys.Select(key => key.Split('.', 4)[3]).ToArray();
             }
 
@@ -77,8 +124,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 return null;
             }
 
-            var keyPrefix = $"cluster.{clusterIdentifier}.hosts.";
-            var keys = await GetKeysAsync($"{keyPrefix}*");
+            var keys = await GetKeysAsync(GetClusterHostnameIpsKey(clusterIdentifier, "*"));
             var result = new List<Models.Core.Host>();
 
             foreach (var key in keys)
@@ -89,11 +135,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     _logger.LogError("Invalid key {@key} while fetching cluster hosts", key);
                     continue;
                 }
-                var cachedHost = await _database.StringGetAsync($"{keyPrefix}{slugs[3]}");
+                var clusterHostnameKey = GetClusterHostnameIpsKey(clusterIdentifier, slugs[3]);
+                var cachedHost = await _database.StringGetAsync(clusterHostnameKey);
                 if (cachedHost.HasValue)
                 {
                     var host = JsonSerializer.Deserialize<HostModel>(cachedHost!);
-                    if (host == null)
+                    if (host == null || host.HostIPs == null || string.IsNullOrEmpty(host.Hostname))
                     {
                         _logger.LogError("Unable to deserialize entry {@key} into type Host with value {@value}", key, cachedHost);
                         continue;
@@ -114,18 +161,66 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<string[]> GetKeysAsync(string prefix)
+        public async Task<string> GetLastResourceVersionAsync(string uniqueIdentifier)
         {
-            var allKeys = await _database.ExecuteAsync("KEYS", prefix);
+            var key = GetResourceVersionKey(uniqueIdentifier);
+            var result = await _database.StringGetAsync(key);
 
-            if (allKeys.Type != ResultType.MultiBulk)
+            if (!result.HasValue)
             {
-                _logger.LogError("KEYS returned incorrect type {@type}", allKeys.Type);
-                return Array.Empty<string>();
+                return string.Empty;
             }
 
-            var result = (string[])allKeys!;
+            return result!;
+        }
+
+        [Trace]
+        public async Task<bool> IsServiceMonitoredAsync(string ns, string name)
+        {
+            var key = GetTrackedServiceKey(ns, name);
+            var cached = await _database.StringGetAsync(key);
+            var result = cached.HasValue;
+
             return result;
+        }
+
+        [Trace]
+        public async Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname)
+        {
+            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname);;
+
+            await _database.KeyDeleteAsync(key);
+            await RefreshHostnameIps(hostname);
+
+            return;
+        }
+
+        [Trace]
+        public async Task<bool> RemoveClusterIdentifierAsync(string clusterIdentifier)
+        {
+            var clusterIdentifiers = await GetClusterIdentifiersAsync();
+            if (!clusterIdentifiers.Contains(clusterIdentifier))
+            {
+                var identifiers = string.Join('\t', clusterIdentifiers.Where(i => i.ToLowerInvariant() != clusterIdentifier.ToLowerInvariant()));
+                var key = GetClusterIdentifiersKey();
+                await _database.StringSetAsync(key, identifiers);
+                return true;
+            }
+            return false;
+        }
+
+        [Trace]
+        public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
+        {
+            var key = GetClusterHeartbeatKey(clusterIdentifier);
+            await _database.StringSetAsync(clusterIdentifier, heartbeat.ToString("O"));
+        }
+
+        [Trace]
+        public async Task SetEndpointsCountAsync(string ns, string name, int count)
+        {
+            var key = GetEndpointKey(ns, name);
+            await _database.StringSetAsync(key, count.ToString("O"));
         }
 
         [Trace]
@@ -134,7 +229,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var result = false;
             await VerifyClusterExistsAsync(clusterIdentifier);
 
-            var key = $"cluster.{clusterIdentifier}.hosts.{hostname}";
+            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname); ;
             var hostModel = new HostModel
             {
                 HostIPs = hostIPs,
@@ -165,92 +260,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<string[]> GetClusterIdentifiersAsync()
-        {
-            var identifierResult = await _database.StringGetAsync("clusteridentifiers");
-
-            if (!identifierResult.HasValue)
-            {
-                _logger.LogWarning("No cluster identifiers found, expected on first run.");
-                return Array.Empty<string>();
-            }
-
-            var identifiers = (string)identifierResult!;
-            var result = identifiers.Split('\t');
-
-            return result;
-        }
-
-        [Trace]
-        public async Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
-        {
-            var heartbeat = await _database.StringGetAsync($"cluster.{clusterIdentifier}.heartbeat");
-            if (DateTime.TryParseExact(heartbeat, "O", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
-            {
-                return result;
-            }
-            else
-            {
-                _logger.LogError("Unable to parse heartbeat {@heartbeat} for cluster {@clusteridentifier}", (string?)heartbeat, clusterIdentifier);
-                return default;
-            }
-        }
-
-        [Trace]
-        public async Task<string> GetLastResourceVersionAsync(string uniqueIdentifier)
-        {
-            var result = await _database.StringGetAsync($"resourceversion.{uniqueIdentifier}");
-
-            if (!result.HasValue)
-            {
-                return string.Empty;
-            }
-
-            return result!;
-        }
-
-        [Trace]
-        public async Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname)
-        {
-            var key = $"cluster.{clusterIdentifier}.hosts.{hostname}";
-
-            await _database.KeyDeleteAsync(key);
-            await RefreshHostnameIps(hostname);
-
-            return;
-        }
-
-        [Trace]
-        public async Task<bool> RemoveClusterIdentifierAsync(string clusterIdentifier)
-        {
-            var clusterIdentifiers = await GetClusterIdentifiersAsync();
-            if (!clusterIdentifiers.Contains(clusterIdentifier))
-            {
-                var identifiers = string.Join('\t', clusterIdentifiers.Where(i => i.ToLowerInvariant() != clusterIdentifier.ToLowerInvariant()));
-                await _database.StringSetAsync("clusteridentifiers", identifiers);
-                return true;
-            }
-            return false;
-        }
-
-        [Trace]
-        public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
-        {
-            var key = $"cluster.{clusterIdentifier}.heartbeat";
-            await _database.StringSetAsync(clusterIdentifier, heartbeat.ToString("O"));
-        }
-
-        [Trace]
         public async Task SetResourceVersionAsync(string uniqueIdentifier, string version)
         {
-            await _database.StringSetAsync($"resourceversion.{uniqueIdentifier}", version);
+            var key = GetResourceVersionKey(uniqueIdentifier);
+            await _database.StringSetAsync(key, version);
         }
 
         [Trace]
         public async Task SynchronizeCachesAsync()
         {
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
-            var clusterKeys = await GetKeysAsync("cluster.*");
+            var clusterKey = GetClusterKey("*");
+            var clusterKeys = await GetKeysAsync(clusterKey);
 
             foreach (var key in clusterKeys)
             {
@@ -270,7 +291,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
 
-            var hostKeys = await GetKeysAsync("hostnames.ips.*");
+            var hostKey = GetHostnameIpsKey("*");
+            var hostKeys = await GetKeysAsync(hostKey);
             foreach (var key in hostKeys)
             {
                 var slugs = key.Split('.', 3);
@@ -308,29 +330,48 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
         }
-        [Trace]
-        public async Task<bool> IsServiceMonitoredAsync(string ns, string name)
-        {
-            var cached = await _database.StringGetAsync($"trackedservices.{ns}.{name}");
-            var result = cached.HasValue;
-
-            return result;
-        }
 
         [Trace]
         public async Task TrackServiceAsync(string ns, string name)
         {
-            await _database.StringSetAsync($"trackedservices.{ns}.{name}", "yes");
+            var key = GetTrackedServiceKey(ns, name);
+            await _database.StringSetAsync(key, "yes");
         }
 
         [Trace]
         public async Task UntrackAllServicesAsync()
         {
-            var keys = await GetKeysAsync("trackedservices.*");
+            var trackedServiceKey = GetTrackedServiceKey("*");
+            var keys = await GetKeysAsync(trackedServiceKey);
             foreach (var key in keys)
             {
                 await _database.KeyDeleteAsync(key);
             }
+        }
+
+        private string GetClusterHeartbeatKey(string clusterIdentifier) => $"{GetClusterKey(clusterIdentifier)}.heartbeat";
+        private string GetClusterHostnameIpsKey(string clusterIdentifier, string hostname) => $"{GetClusterKey(clusterIdentifier)}.hosts.{hostname}";
+        private string GetClusterIdentifiersKey() => "clusteridentifiers";
+        private string GetClusterKey(string clusterIdentifier) => $"clusters.{clusterIdentifier}";
+        private string GetEndpointKey(string ns, string name) => $"endpoints.{ns}.{name}";
+        private string GetHostnameIpsKey(string hostname) => $"hostnames.ips.{hostname}";
+        private string GetResourceVersionKey(string uniqueIdentifier) => $"resourceversions.{uniqueIdentifier}";
+        private string GetTrackedServiceKey(string ns) => $"trackedservices.{ns}";
+        private string GetTrackedServiceKey(string ns, string serviceName) => $"{GetTrackedServiceKey(ns)}.{serviceName}";
+
+        [Trace]
+        private async Task<string[]> GetKeysAsync(string prefix)
+        {
+            var allKeys = await _database.ExecuteAsync("KEYS", prefix);
+
+            if (allKeys.Type != ResultType.MultiBulk)
+            {
+                _logger.LogError("KEYS returned incorrect type {@type}", allKeys.Type);
+                return Array.Empty<string>();
+            }
+
+            var result = (string[])allKeys!;
+            return result;
         }
 
         [Trace]
@@ -342,7 +383,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
             foreach (var identifier in clusterIdentifiers)
             {
-                key = $"cluster.{identifier}.hosts.{hostname}";
+                key = GetClusterHostnameIpsKey(identifier, hostname); ;
                 var clusterIps = await _database.StringGetAsync(key);
                 var value = (string?)clusterIps;
                 if (value != null)
@@ -363,7 +404,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
 
-            key = $"hostnames.ips.{hostname}";
+            key = GetHostnameIpsKey(hostname);
             var host = new HostModel
             {
                 Hostname = hostname,
@@ -374,7 +415,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var status = await _database.StringSetAsync(key, ips);
             if (!status)
             {
-                //TODO: Implement retry logic for redis cache
                 _logger.LogError("Unable to update ips for host {@hostname}", hostname);
             }
 
@@ -388,10 +428,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             if (!clusterIdentifiers.Contains(clusterIdentifier))
             {
                 var identifiers = string.Join('\t', clusterIdentifiers.Union(new[] { clusterIdentifier }));
-                await _database.StringSetAsync("clusteridentifiers", identifiers);
+                var key = GetClusterIdentifiersKey();
+                await _database.StringSetAsync(key, identifiers);
             }
         }
-
 
         private class HostModel
         {
