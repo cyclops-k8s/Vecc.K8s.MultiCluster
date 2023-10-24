@@ -27,6 +27,14 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
         [Trace]
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
         {
+            if (Request.Path.StartsWithSegments("/swagger") ||
+                Request.Path.StartsWithSegments("/health") ||
+                Request.Path.StartsWithSegments("/healthz"))
+            {
+                Logger.LogTrace("No auth route detected, {path}", Request.Path.ToString());
+                return AuthenticateResult.NoResult();
+            }
+
             var keyHeader = StringValues.Empty;
             if (!Request.Headers.TryGetValue("X-Api-Key", out keyHeader))
             {

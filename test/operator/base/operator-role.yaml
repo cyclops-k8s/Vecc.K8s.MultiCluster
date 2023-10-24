@@ -16,17 +16,9 @@ rules:
   - watch
 - apiGroups:
   - ""
-  - apps
-  resources:
-  - namespaces
-  - deployments
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - ""
   resources:
   - events
+  - namespaces
   verbs:
   - create
   - get
@@ -39,6 +31,13 @@ rules:
   verbs:
   - '*'
 - apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses/status
@@ -50,14 +49,6 @@ rules:
   - ""
   resources:
   - services/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - namespaces/status
   verbs:
   - get
   - patch

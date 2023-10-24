@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcingress
+  labels:
+    name: myingress
+spec:
+  rules:
+  - host: mcingress.test2
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: mcingress
+            port: 
+              number: 5000

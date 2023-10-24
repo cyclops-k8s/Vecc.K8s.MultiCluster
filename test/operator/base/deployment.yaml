@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: operator
+  name: operator
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: operator
+  template:
+    metadata:
+      labels:
+        app: operator
+    spec:
+      containers:
+      - name: dns-server
+        args:
+        - --dns-server
+        env:
+        - name: KESTREL__ENDPOINTS__HTTP__URL
+          value: http://0.0.0.0:5000
+        envFrom:
+        - configMapRef:
+            name: mcingress
+        image: localhost:5001/multicluster:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /Healthz/Liveness
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        ports:
+        - containerPort: 5000
+          name: http
+        - containerPort: 53
+          name: dns-tcp
+          protocol: TCP
+        - containerPort: 53
+          name: dns-udp
+          protocol: UDP
+        readinessProbe:
+          httpGet:
+            path: /Healthz/Ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+      - name: orchestrator
+        args:
+        - --orchestrator
+        env:
+        - name: KESTREL__ENDPOINTS__HTTP__URL
+          value: http://0.0.0.0:5001
+        envFrom:
+        - configMapRef:
+            name: mcingress
+        image: localhost:5001/multicluster:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /Healthz/Liveness
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        ports:
+        - containerPort: 5001
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /Healthz/Ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+      - name: api-server
+        args:
+        - --front-end
+        env:
+        - name: KESTREL__ENDPOINTS__HTTP__URL
+          value: http://0.0.0.0:5002
+        envFrom:
+        - configMapRef:
+            name: mcingress
+        image: localhost:5001/multicluster:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /Healthz/Liveness
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        ports:
+        - containerPort: 5002
+          protocol: TCP
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /Healthz/Ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+      terminationGracePeriodSeconds: 10

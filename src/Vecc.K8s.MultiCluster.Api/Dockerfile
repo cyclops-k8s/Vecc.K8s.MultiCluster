@@ -1,21 +1,25 @@
-#See https://aka.ms/containerfastmode to understand how Visual Studio uses this Dockerfile to build your images for faster debugging.
+# Build the operator
+FROM mcr.microsoft.com/dotnet/sdk:latest as build
+WORKDIR /operator
 
-FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
-WORKDIR /app
-EXPOSE 80
+COPY ./ ./
+RUN curl -L -o cfssl https://github.com/cloudflare/cfssl/releases/download/v1.5.0/cfssl_1.5.0_linux_amd64
+RUN curl -L -o cfssljson https://github.com/cloudflare/cfssl/releases/download/v1.5.0/cfssljson_1.5.0_linux_amd64
+RUN chmod +x ./cfssl
+RUN chmod +x ./cfssljson
+RUN mkdir out
+RUN cp cfssl cfssljson out/
+RUN dotnet publish -c Release -o out ../Vecc.K8s.MultiCluster.Api.csproj
 
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
-WORKDIR /src
-COPY ["src/Vecc.K8s.MultiCluster.Api/Vecc.K8s.MultiCluster.Api.csproj", "src/Vecc.K8s.MultiCluster.Api/"]
-RUN dotnet restore "src/Vecc.K8s.MultiCluster.Api/Vecc.K8s.MultiCluster.Api.csproj"
-COPY . .
-WORKDIR "/src/src/Vecc.K8s.MultiCluster.Api"
-RUN dotnet build "Vecc.K8s.MultiCluster.Api.csproj" -c Release -o /app/build
+# The runner for the application
+FROM mcr.microsoft.com/dotnet/aspnet:latest as final
 
-FROM build AS publish
-RUN dotnet publish "Vecc.K8s.MultiCluster.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN addgroup k8s-operator && useradd -G k8s-operator operator-user
 
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Vecc.K8s.MultiCluster.Api.dll"]
+WORKDIR /operator
+COPY --from=build /operator/out/ ./
+RUN chown operator-user:k8s-operator -R .
+
+USER operator-user
+
+ENTRYPOINT [ "dotnet", "Vecc.K8s.MultiCluster.Api.dll" ]

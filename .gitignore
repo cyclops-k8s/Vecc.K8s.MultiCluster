@@ -4,6 +4,7 @@ obj
 config
 .vs
 .vscode
+.test
 
 *.suo
 *.user

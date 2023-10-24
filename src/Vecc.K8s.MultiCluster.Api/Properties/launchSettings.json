@@ -9,7 +9,7 @@
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5140",
-      "commandLineArgs": "--orchestrator --front-end --dns-server"
+      "commandLineArgs": "--orchestrator"
     },
     "IIS Express": {
       "commandName": "IISExpress",

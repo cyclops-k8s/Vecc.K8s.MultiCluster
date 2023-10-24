@@ -12,6 +12,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
     [EntityRbac(typeof(V1Ingress), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Endpoints), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
+    [EntityRbac(typeof(V1Namespace), Verbs = RbacVerb.List | RbacVerb.Get)]
     public class K8sChangedController : IResourceController<V1Ingress>, IResourceController<V1Service>, IResourceController<V1Endpoints>
     {
         private readonly ILogger<K8sChangedController> _logger;
