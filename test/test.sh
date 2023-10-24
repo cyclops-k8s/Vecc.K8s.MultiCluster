@@ -32,7 +32,7 @@ echo "Setting path"
 PATH="`pwd`/.test:$PATH"
 
 echo "Setting KUBECONFIG path"
-export KUBECONFIG=`pwd`/cluster.config
+export KUBECONFIG=`pwd`/.test/cluster.config
 
 echo "Setting up Kind cluster 1"
 
