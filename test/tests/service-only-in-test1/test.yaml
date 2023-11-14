@@ -54,6 +54,7 @@ metadata:
   name: nginx
   labels:
     name: nginx
+  namespace: only-in-test1
 spec:
   rules:
   - host: only-in-test1.test1

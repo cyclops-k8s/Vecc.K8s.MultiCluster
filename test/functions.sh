@@ -102,7 +102,6 @@ echo_color_error() {
 }
 
 spinner_setup() {
-    (
         STDOUTFILE="$1/setup-stdout.txt"
         STDERRFILE="$1/setup-stderr.txt"
 
@@ -111,11 +110,9 @@ spinner_setup() {
         setup 1> $STDOUTFILE 2> $STDERRFILE"
 
         return $?
-    )
 }
 
 spinner_assert() {
-    (
         STDOUTFILE="$1/assert-stdout.txt"
         STDERRFILE="$1/assert-stderr.txt"
 
@@ -124,11 +121,9 @@ spinner_assert() {
         assert 1> $STDOUTFILE 2> $STDERRFILE"
 
         return $?
-    )
 }
 
 spinner_cleanup() {
-    (
         STDOUTFILE="$1/cleanup-stdout.txt"
         STDERRFILE="$1/cleanup-stderr.txt"
 
@@ -137,7 +132,6 @@ spinner_cleanup() {
         cleanup 1> $STDOUTFILE 2> $STDERRFILE"
 
         return $?
-    )
 }
 
 spinner_wait() {

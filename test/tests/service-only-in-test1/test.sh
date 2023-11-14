@@ -5,13 +5,23 @@
 setup() {
     set -e
     use_context 1
-    kubectl apply -f test.yaml
 
+    echo "Applying manifests"
+    kubectl apply -f test.yaml
+    RETCODE=$?
     sleep 1
+
+    echo "Setting namespace"
     set_namespace only-in-test1
+    let RETCODE+=$?
+
+    echo "Waiting for resource"
     wait_for_resource pod condition=ready app=nginx
+    let RETCODE+=$?
     
-    return $?
+    echo "Response code: $RETCODE"
+    sleep 1
+    return $RETCODE
 }
 
 assert() {

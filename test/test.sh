@@ -13,8 +13,8 @@ function terminate() {
     RESULTS="results-`date +%Y%m%d-%H%M%S`.tgz"
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
     tar -czf $DIRECTORY/$RESULTS --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
-    rm -rf "results"
-    cp -r "$TEMPDIRECTORY/results" .
+    rm -rf "$DIRECTORY/results"
+    cp -r "$TEMPDIRECTORY/results" "$DIRECTORY"
     rm -rf "$TEMPDIRECTORY"
 }
 
