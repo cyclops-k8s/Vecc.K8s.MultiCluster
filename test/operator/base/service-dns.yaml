@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcingress-dns
+spec:
+  selector:
+    app: operator
+  ports:
+  - port: 1053
+    targetPort: 1053
+    protocol: UDP
+    name: u
+  - port: 1053
+    targetPort: 1053
+    protocol: TCP
+    name: t

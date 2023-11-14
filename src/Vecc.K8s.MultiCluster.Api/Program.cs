@@ -84,7 +84,10 @@ builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme
     .AddScheme<ApiAuthenticationHandlerOptions, ApiAuthenticationHandler>(ApiAuthenticationHandlerOptions.DefaultScheme, null);
 
 var options = new MultiClusterOptions();
+var dnsOptions = new DnsServerOptions();
 builder.Configuration.Bind(options);
+builder.Configuration.GetSection("DnsServer").Bind(dnsOptions);
+
 foreach (var peer in options.Peers)
 {
     builder.Services.AddHttpClient(peer.Url, client =>
@@ -152,8 +155,9 @@ if (args.Any(arg => arg == "--orchestrator"))
 }
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
 logger.LogInformation("Starting");
-logger.LogInformation("Configured Options {@options}", options);
+logger.LogInformation("Configured Options {@options} {@dnsServerOptions}", options, dnsOptions);
 
 var processTasks = new List<Task>();
 
@@ -166,28 +170,27 @@ if (args.Contains("--orchestrator"))
     app.Services.GetRequiredService<ILeaderElection>().LeadershipChange.Subscribe(defaultLeaderStateChangeObserver);
     var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
 
-    processTasks.Add(new Task(async () =>
+    processTasks.Add(Task.Run(()=>
     {
         logger.LogInformation("Starting the operator");
-        await app.RunOperatorAsync(args.Where(a => a != "--dns-server" && a != "--front-end" && a != "--orchestrator").ToArray());
-        logger.LogInformation("Operator stopped");
-    }, TaskCreationOptions.LongRunning));
+        return app.RunOperatorAsync(args.Where(a => a != "--dns-server" && a != "--front-end" && a != "--orchestrator").ToArray())
+            .ContinueWith(_=> logger.LogInformation("Operator stopped"));
+    }));
 
-    processTasks[0].Start();
-
-    processTasks.Add(new Task(async () =>
+    processTasks.Add(Task.Run(() =>
     {
         logger.LogInformation("Starting cluster heartbeat");
-        await hostnameSynchronizer.ClusterHeartbeatAsync();
-        logger.LogInformation("Cluster heartbeat stopped");
-    }, TaskCreationOptions.LongRunning));
+        return hostnameSynchronizer.ClusterHeartbeatAsync().ContinueWith(_ =>
+        {
+            logger.LogInformation("Cluster heartbeat stopped");
+        });
+    }));
 
-    processTasks.Add(new Task(async () =>
+    processTasks.Add(Task.Run(() =>
     {
         logger.LogInformation("Starting cluster heartbeat watcher");
-        await hostnameSynchronizer.WatchClusterHeartbeatsAsync();
-        logger.LogInformation("Cluster heartbeat watcher stopped");
-    }, TaskCreationOptions.LongRunning));
+        return hostnameSynchronizer.WatchClusterHeartbeatsAsync().ContinueWith(_ => logger.LogInformation("Cluster heartbeat watcher stopped"));
+    }));
 }
 
 //starts the dns server to respond to dns queries for the respective hosts
@@ -201,31 +204,25 @@ if (args.Contains("--dns-server"))
 
     queue.OnHostChangedAsync = dnsResolver.OnHostChangedAsync;
 
-    logger.LogInformation("Starting the dns server");
-    processTasks.Add(new Task(async () => await dnsHost.StartAsync(), TaskCreationOptions.LongRunning));
+    processTasks.Add(Task.Run(() =>
+    {
+        logger.LogInformation("Starting the dns server");
+        return dnsHost.StartAsync().ContinueWith(_ => logger.LogInformation("DNS Server stopped"));
+    }));
 }
 
 //starts the api server
 if (!args.Contains("--orchestrator") && (args.Contains("--dns-server") || args.Contains("--front-end")))
 {
-    logger.LogInformation("Running the front end api");
-    processTasks.Add(Task.Run(async () =>
+    processTasks.Add(Task.Run(() =>
     {
-        await app.RunAsync();
+        logger.LogInformation("Running API Server");
+        return app.RunAsync().ContinueWith(_ => logger.LogInformation("API Server stopped"));
     }));
 }
 
-//if (!addedOperator)
-//{
-//    logger.LogInformation("Running underlying KubeOps");
-
-//}
-
 logger.LogInformation("Waiting on process tasks");
-//await app.RunOperatorAsync(args.Where(a => a != "--dns-server" && a != "--front-end" && a != "--orchestrator").ToArray());
+
 await Task.WhenAll(processTasks);
 
 logger.LogInformation("Terminated");
-
-
-

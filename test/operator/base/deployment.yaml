@@ -36,10 +36,10 @@ spec:
         ports:
         - containerPort: 5000
           name: http
-        - containerPort: 53
+        - containerPort: 1053
           name: dns-tcp
           protocol: TCP
-        - containerPort: 53
+        - containerPort: 1053
           name: dns-udp
           protocol: UDP
         readinessProbe:

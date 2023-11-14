@@ -1,6 +1,9 @@
 #!/bin/bash
 
-#set -e
+set -e
+
+. ./functions.sh
+
 cat <<EOF | kind create cluster --name "$1" --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -18,8 +21,6 @@ for node in $(kind get nodes -n "$1"); do
 EOF
 done
 
-# 4. Connect the registry to the cluster network if not already connected
-# This allows kind to bootstrap the network but ensures they're on the same network
 if [ "$(docker inspect -f='{{json .NetworkSettings.Networks.kind}}' "${reg_name}")" = 'null' ]; then
   docker network connect "kind" "${reg_name}"
 fi
@@ -38,5 +39,30 @@ data:
     help: "https://kind.sigs.k8s.io/docs/user/local-registry/"
 EOF
 
+echo_color "${G}Downloading nginx manifest"
 kustomize build operator/$1 | kubectl apply -f -
+curl -o .test/nginx.yaml -L https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+sed -i 's/- --publish-status-address=localhost//' .test/nginx.yaml 
+
+echo_color "${G}Labeling node for ingress"
+kubectl label node $1-control-plane ingress-ready=true
+
+echo_color "${G}Applying nginx manifest"
+kubectl apply -f .test/nginx.yaml
+
+echo_color "${G}Waiting for nginx to get applied"
+
+set +e
+
+T=1
+while [ $T != 0 ]
+do
+  kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=1s
+  T=$?
+  [ $T != 0 ] && sleep 1
+done
+
+kubectl get --namespace ingress-nginx --selector=app.kubernetes.io/component=controller pod
+
+echo_color "${G}Setting default namespace to mcingress-operator"
 kubectl config set-context kind-$1 --namespace=mcingress-operator

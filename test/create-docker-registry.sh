@@ -1,5 +1,8 @@
-#!/bin/sh
+#!/bin/bash
+
 set -o errexit
+
+. functions.sh
 
 if [ "$(docker inspect -f '{{.State.Running}}' "${reg_name}" 2>/dev/null || true)" != 'true' ]; then
   docker run \
