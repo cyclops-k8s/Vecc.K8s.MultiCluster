@@ -1,3 +1,5 @@
+using Destructurama;
+using KubeOps.KubernetesClient;
 using KubeOps.Operator;
 using KubeOps.Operator.Leadership;
 using Microsoft.Extensions.Options;
@@ -9,12 +11,6 @@ using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
-using Destructurama;
-using k8s.Models;
-using System.Diagnostics.Eventing.Reader;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using k8s;
-using KubeOps.KubernetesClient;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.logging.json");
@@ -135,24 +131,22 @@ builder.Services.AddSingleton<ISubscriber>(sp =>
 });
 
 var app = builder.Build();
-app.MapWhen(context => !context.Request.Path.StartsWithSegments("/Healthz"), appBuilder => appBuilder.UseSerilogRequestLogging());
+
+app.UseWhen(context => !context.Request.Path.StartsWithSegments("/Healthz"), appBuilder => appBuilder.UseSerilogRequestLogging());
 app.UseSwagger();
 app.UseSwaggerUI();
-var controllerPaths = new string[] { "/Heartbeat", "/Authentication", "/Host", "/Healthz" };
-foreach (var path in controllerPaths)
+
+var controllerPaths = new string[] { "/Heartbeat", "/Authentication", "/Host", "/Healthz", "/swagger" };
+if (args.Contains("--orchestrator"))
 {
-    app.MapWhen(context => context.Request.Path.StartsWithSegments(path), appBuilder =>
-    {
-        appBuilder.UseRouting();
-        appBuilder.UseAuthentication();
-        appBuilder.UseAuthorization();
-        appBuilder.UseEndpoints(endpointBuilder => endpointBuilder.MapControllers());
-    });
+    app.UseWhen(context => !controllerPaths.Any(path => context.Request.Path.StartsWithSegments(path)), appBuilder => appBuilder.UseKubernetesOperator());
+    app.UseKubernetesOperator();
 }
-if (args.Any(arg => arg == "--orchestrator"))
-{
-    app.MapWhen(context => !controllerPaths.Any(path => context.Request.Path.StartsWithSegments(path)), appBuilder => appBuilder.UseKubernetesOperator());
-}
+
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
@@ -170,11 +164,11 @@ if (args.Contains("--orchestrator"))
     app.Services.GetRequiredService<ILeaderElection>().LeadershipChange.Subscribe(defaultLeaderStateChangeObserver);
     var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
 
-    processTasks.Add(Task.Run(()=>
+    processTasks.Add(Task.Run(() =>
     {
         logger.LogInformation("Starting the operator");
         return app.RunOperatorAsync(args.Where(a => a != "--dns-server" && a != "--front-end" && a != "--orchestrator").ToArray())
-            .ContinueWith(_=> logger.LogInformation("Operator stopped"));
+            .ContinueWith(_ => logger.LogInformation("Operator stopped"));
     }));
 
     processTasks.Add(Task.Run(() =>

@@ -29,24 +29,28 @@ wait_for_resource() {
     SELECTOR=$3
     TIMEOUT=${4:-30}
     STARTTIME=`date +%s`
+    ESTATE=$-; ESTATE=`get_sete "$ESTATE"`
+
+    set +e
 
     echo "Waiting for $RESOURCE with selector $SELECTOR for up to $TIMEOUT seconds to be $WAITFOR"
     LASTEXITCODE=1
 
     while [ $LASTEXITCODE != 0 ]
     do
-        set +e
         kubectl wait --for=$WAITFOR $RESOURCE --selector=$SELECTOR --timeout=1s 1> /dev/null 2> /dev/null
-        set -e
         LASTEXITCODE=$?
         if [ $LASTEXITCODE != 0 ]
         then
             # check to see if we timed out
             NOW=`date +%s`
-            (( ($NOW-$STARTTIME) > $TIMEOUT )) && echo "Timeout expired" && return 1
+            (( ($NOW-$STARTTIME) > $TIMEOUT )) && echo "Timeout expired" && set_sete $ESTATE && return 1
             echo "Timeout not expired, waiting for another second."
+            sleep 1
         fi
     done
+
+    set_sete $ESTATE
     return 0
 }
 
@@ -83,7 +87,9 @@ get_ip() {
 
     IP=`dig $2 @localhost -p $PORT \
             | grep -o -E "^$2.*" \
-            | grep -o -E "[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?"`
+            | grep -o -E "[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?" \
+            || true`
+
     echo -n $IP
 }
 
@@ -100,27 +106,44 @@ wait_for_ingress() {
     TIMEOUT=${2:-45}
     STARTTIME=`date +%s`
     LASTEXITCODE=1
+    ESTATE=$-; ESTATE=`get_sete "$ESTATE"`
+
+    set +e
+
     while [ $LASTEXITCODE != 0 ]
     do
-        set +e
-        kubectl get ingress nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2> /dev/null 1> /dev/null
-        set -e
+        IP=`kubectl get ingress $INGRESS -o jsonpath="{.status.loadBalancer.ingress[0].ip}"`
         LASTEXITCODE=$?
-        if [ $LASTEXITCODE != 0 ]
+        if [[ "$LASTEXITCODE" != "0" || "$IP" == "" ]]
         then
             # check to see if we timed out
             NOW=`date +%s`
-            (( ($NOW-$STARTTIME) > $TIMEOUT )) && echo "Timeout expired" && return 1
+            if (( ($NOW-$STARTTIME) > $TIMEOUT ))
+            then
+                echo "Timeout expired"
+                set_sete $ESTATE
+                return 1
+            fi
             echo "Timeout not expired, waiting for another second."
             sleep 1
+            $LASTEXITCODE=1
         fi
     done
     NOW=`date +%s`
     let ELAPSED=$NOW-$STARTTIME || true
     echo "It took $ELAPSED seconds for the ingress to be recognized by NGINX"
+    set_sete $ESTATE
+
     return 0
 }
 
+get_sete() {
+    echo $1 | grep -o e 1> /dev/null 2> /dev/null && echo -n "1" || echo -n "0"
+}
+
+set_sete() {
+    [ "$1" == "1" ] && set -e || set +e
+}
 
 R='\033[31m'   #'31' is Red's ANSI color code
 G='\033[32m'   #'32' is Green's ANSI color code

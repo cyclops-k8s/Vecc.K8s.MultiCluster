@@ -29,17 +29,13 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             {
                 return Ok("Already checked and ready to go");
             }
-
+            V1Namespace? ns = null;
             try
             {
-                var namespaces = await _kubernetesClient.List<V1Namespace>(null);
-                if (namespaces == null)
+                ns = await _kubernetesClient.Get<V1Namespace>(await _kubernetesClient.GetCurrentNamespace("kube-system"));
+                if (ns == null)
                 {
                     return StatusCode(500, "Namespace result was null");
-                }
-                if (namespaces.Count == 0)
-                {
-                    return StatusCode(500, "Namespace list was empty");
                 }
             }
             catch (Exception ex)
@@ -48,7 +44,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             }
 
             _ready = true;
-            return Ok("Kubernetes API returned namespaces");
+            return Ok(new { Status = "Kubernetes API returned something", Namespace = ns });
         }
 
         [HttpGet("Liveness")]

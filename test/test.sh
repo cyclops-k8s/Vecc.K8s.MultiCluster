@@ -74,10 +74,10 @@ docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:lat
 docker image push localhost:${reg_port}/multicluster:latest
 
 echo_color "${G}Removing old clusters"
-kind delete clusters --all
+# kind delete clusters --all
 
-./create-cluster.sh test1
-./create-cluster.sh test2
+# ./create-cluster.sh test1
+# ./create-cluster.sh test2
 
 use_context 1
 echo_color "${G}Kind-Test1"
@@ -94,7 +94,26 @@ set +e
     eval "kubectl relay --context kind-test2 --namespace mcingress-operator deployment/operator-dns-server 1054:1053@udp" 1> $TEMPDIRECTORY/Relay-2.txt 2>&1 &
 )
 
-spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" sleep 1
+spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" "
+set +e
+WAIT=1
+while [ \$WAIT != 0 ]
+do
+    dig mcingress.test1 @localhost -p 1053 1> $TEMPDIRECTORY/relaywait.stdout 2> $TEMPDIRECTORY/relaywait.stderr
+    WAIT=\$?
+    [ \$WAIT != 0 ] && sleep 1
+done
+WAIT=1
+while [ \$WAIT != 0 ]
+do
+    dig mcingress.test2 @localhost -p 1054 1>> $TEMPDIRECTORY/relaywait.stdout 2>> $TEMPDIRECTORY/relaywait.stderr
+    WAIT=\$?
+    [ \$WAIT != 0 ] && sleep 1
+done
+set -e
+"
+
+set +e
 
 echo_color "${G}Getting cluster 1 ingress IP"
 use_context 1
