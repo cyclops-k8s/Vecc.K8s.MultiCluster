@@ -23,7 +23,6 @@ use_context() {
 # example:
 # * to wait for pods with a label sector of "app.kubernetes.io/component=controller" to become ready for 10 seconds
 #   wait_for_resource pod condition=ready app.kubernetes.io/component=controller 10
-
 wait_for_resource() {
     RESOURCE=$1
     WAITFOR=$2
@@ -36,7 +35,9 @@ wait_for_resource() {
 
     while [ $LASTEXITCODE != 0 ]
     do
+        set +e
         kubectl wait --for=$WAITFOR $RESOURCE --selector=$SELECTOR --timeout=1s 1> /dev/null 2> /dev/null
+        set -e
         LASTEXITCODE=$?
         if [ $LASTEXITCODE != 0 ]
         then
@@ -85,6 +86,41 @@ get_ip() {
             | grep -o -E "[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?"`
     echo -n $IP
 }
+
+# usage:
+#  wait_for_ingress <ingress name> <timeout>
+#
+#   returns an exit code of 1 if the timeout elapsed before the ingress is recognized by NGINX
+#   returns an exit code of 0 if the ingress is recognized by NGINX within the timeout
+#
+# remarks:
+#   If timeout is not specified, it defaults to 45 seconds
+wait_for_ingress() {
+    INGRESS=$1
+    TIMEOUT=${2:-45}
+    STARTTIME=`date +%s`
+    LASTEXITCODE=1
+    while [ $LASTEXITCODE != 0 ]
+    do
+        set +e
+        kubectl get ingress nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2> /dev/null 1> /dev/null
+        set -e
+        LASTEXITCODE=$?
+        if [ $LASTEXITCODE != 0 ]
+        then
+            # check to see if we timed out
+            NOW=`date +%s`
+            (( ($NOW-$STARTTIME) > $TIMEOUT )) && echo "Timeout expired" && return 1
+            echo "Timeout not expired, waiting for another second."
+            sleep 1
+        fi
+    done
+    NOW=`date +%s`
+    let ELAPSED=$NOW-$STARTTIME || true
+    echo "It took $ELAPSED seconds for the ingress to be recognized by NGINX"
+    return 0
+}
+
 
 R='\033[31m'   #'31' is Red's ANSI color code
 G='\033[32m'   #'32' is Green's ANSI color code
@@ -176,7 +212,7 @@ spinner_test() {
     fi
     spinner_cleanup "$OUTPUTDIRECTORY"
     CLEANUPRESULT=$?
-    let RESULT=$SETUPRESULT+$ASSERTRESULT+$CLEANUPRESULT
+    let RESULT=$SETUPRESULT+$ASSERTRESULT+$CLEANUPRESULT || true
 
     return $RESULT
 }

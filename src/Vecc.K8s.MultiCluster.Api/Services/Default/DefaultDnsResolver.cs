@@ -98,7 +98,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             var hostInformation = await _cache.GetHostInformationAsync(hostname);
-            if (hostInformation == null)
+            if (hostInformation?.HostIPs == null || hostInformation.HostIPs.Length == 0)
             {
                 //no host information
                 _logger.LogWarning("Host information lost for {@hostname}", hostname);
