@@ -4,10 +4,10 @@ use_context() {
     kubectl config use-context "kind-test$1"
 }
 
-R='\033[0;31m'   #'0;31' is Red's ANSI color code
-G='\033[0;32m'   #'0;32' is Green's ANSI color code
-B='\033[0;34m'   #'0;34' is Blue's ANSI color code
-Y='\033[0;33m'   #'1;32' is Yellow's ANSI color code
+R='\033[31m'   #'31' is Red's ANSI color code
+G='\033[32m'   #'32' is Green's ANSI color code
+Y='\033[33m'   #'33' is Yellow's ANSI color code
+B='\033[34m'   #'34' is Blue's ANSI color code
 
 NOCOLOR='\033[0m'
 
