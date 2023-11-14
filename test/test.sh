@@ -56,7 +56,7 @@ then
   curl -fsSLo ./.test/${KREW}.tar.gz "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz"
   tar zxvf ".test/${KREW}.tar.gz" --transform="s/^/.test\//"
   mv .test/${KREW} .test/krew
-  krew install relay
+  .test/krew install relay
 fi
 
 echo_color "${G}Setting path"
@@ -73,10 +73,10 @@ docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:lat
 docker image push localhost:${reg_port}/multicluster:latest
 
 echo_color "${G}Removing old clusters"
-# kind delete clusters --all
+kind delete clusters --all
 
-# ./create-cluster.sh test1
-# ./create-cluster.sh test2
+./create-cluster.sh test1
+./create-cluster.sh test2
 
 use_context 1
 echo_color "${G}Kind-Test1"

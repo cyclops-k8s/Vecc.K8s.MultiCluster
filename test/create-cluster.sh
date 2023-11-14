@@ -50,19 +50,17 @@ kubectl label node $1-control-plane ingress-ready=true
 echo_color "${G}Applying nginx manifest"
 kubectl apply -f .test/nginx.yaml
 
-echo_color "${G}Waiting for nginx to get applied"
 
 set +e
-
+spinner_wait "${G}Waiting for nginx to get applied" "
 T=1
-while [ $T != 0 ]
+while [ \$T != 0 ]
 do
-  kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=1s
-  T=$?
-  [ $T != 0 ] && sleep 1
+  kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=1s 1> /dev/null 2> /dev/null
+  T=\$?
+  [ \$T != 0 ] && sleep 1
 done
-
-kubectl get --namespace ingress-nginx --selector=app.kubernetes.io/component=controller pod
+"
 
 echo_color "${G}Setting default namespace to mcingress-operator"
 kubectl config set-context kind-$1 --namespace=mcingress-operator
