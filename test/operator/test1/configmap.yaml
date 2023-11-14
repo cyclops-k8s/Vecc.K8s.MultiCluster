@@ -3,4 +3,4 @@ kind: ConfigMap
 metadata:
   name: mcingress
 data:
-  Peers__0__Url: http://xxx:123/
+  Peers__0__Url: http://test2-control-plane:5002/

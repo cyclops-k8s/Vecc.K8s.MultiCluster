@@ -13,7 +13,8 @@ function terminate() {
     RESULTS="results-`date +%Y%m%d-%H%M%S`.tgz"
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
     tar -czf $DIRECTORY/$RESULTS --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
-
+    rm -rf "results"
+    cp -r "$TEMPDIRECTORY/results" .
     rm -rf "$TEMPDIRECTORY"
 }
 
@@ -73,10 +74,10 @@ docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:lat
 docker image push localhost:${reg_port}/multicluster:latest
 
 echo_color "${G}Removing old clusters"
-kind delete clusters --all
+# kind delete clusters --all
 
-./create-cluster.sh test1
-./create-cluster.sh test2
+# ./create-cluster.sh test1
+# ./create-cluster.sh test2
 
 use_context 1
 echo_color "${G}Kind-Test1"
@@ -89,11 +90,21 @@ kubectl get ns
 set +e
 
 (
-    eval "kubectl relay --context kind-test1 deployment/operator 1053:1053@udp" 1> $TEMPDIRECTORY/Relay-1.txt 2>&1 &
-    eval "kubectl relay --context kind-test2 deployment/operator 1054:1053@udp" 1> $TEMPDIRECTORY/Relay-2.txt 2>&1 &
+    eval "kubectl relay --context kind-test1 --namespace mcingress-operator deployment/operator 1053:1053@udp" 1> $TEMPDIRECTORY/Relay-1.txt 2>&1 &
+    eval "kubectl relay --context kind-test2 --namespace mcingress-operator deployment/operator 1054:1053@udp" 1> $TEMPDIRECTORY/Relay-2.txt 2>&1 &
 )
 
-spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" sleep 5
+spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" sleep 1
+
+echo_color "${G}Getting cluster 1 ingress IP"
+use_context 1
+export CLUSTER1IP=`kubectl get nodes --context kind-test1 test1-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r`
+echo_color "${Y}${CLUSTER1IP}"
+
+echo_color "${G}Getting cluster 2 ingress IP"
+use_context 2
+export CLUSTER2IP=`kubectl get nodes test2-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r`
+echo_color "${Y}${CLUSTER2IP}"
 
 FAILEDTESTS=()
 PASSEDTESTS=()
@@ -140,3 +151,4 @@ do
     RESULTCODE=1
     echo_color "${R}✗ Test ${Y}$TEST${R} failed"
 done
+sleep 100

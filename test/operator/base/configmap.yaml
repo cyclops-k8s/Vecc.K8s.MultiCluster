@@ -3,14 +3,11 @@ kind: ConfigMap
 metadata:
   name: mcingress
 data:
-  DnsServer__ListenTCPPort: "53"
-  DnsServer__ListenUDPPort: "53"
+  DnsServer__ListenTCPPort: "1053"
+  DnsServer__ListenUDPPort: "1053"
   DNSServerResponsibleEmailAddress: edward.frakkingsweet.com
   ClusterSalt: JU975LRi7ynSUz0bk57F/O/sF+zrOqK7NfbcQTgjszdfZ3LTG5mBqxKCU2FvAwX2PuVaCF0/y5v7cSmY9wkw5A==
-  Authentication__ApiKeys__0__ClusterIdentifier: remote-1
   Authentication__ApiKeys__0__Key: W26VCNAgvtUa5B38iNmFLPUa3hoUYY3L152qJPyJOeQ7UVu0G+XSDL1+lq6zNqnJ8HgVpgJoQulb9KRX690UGQ==
-  Peers__0__Identifier: remote-1
-  Peers__0__Url: OVERRIDE
   Peers__0__Key: c648c376-059e-4947-8e7a-6d7528c5c85c
   ConnectionStrings__Redis: redis.mcingress-operator.svc.cluster.local
   

@@ -18,7 +18,7 @@ FROM base AS final
 ARG DEBUG=0
 ENV DEBUG=${DEBUG}
 SHELL [ "/bin/bash", "-c" ]
-RUN [ ${DEBUG} == 1 ]  && apt update && apt install -y procps net-tools dnsutils || true
+RUN [ ${DEBUG} == 1 ] && apt update && apt install -y procps net-tools dnsutils iputils-ping curl || true
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Vecc.K8s.MultiCluster.Api.dll"]

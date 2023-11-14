@@ -3,17 +3,20 @@ kind: Deployment
 metadata:
   labels:
     app: operator
-  name: operator
+    component: dns-server
+  name: operator-dns-server
 spec:
   replicas: 1
   revisionHistoryLimit: 0
   selector:
     matchLabels:
       app: operator
+      component: dns-server
   template:
     metadata:
       labels:
         app: operator
+        component: dns-server
     spec:
       containers:
       - name: dns-server
@@ -50,11 +53,33 @@ spec:
           timeoutSeconds: 1
         resources:
           limits:
-            cpu: 100m
+            cpu: 1000m
             memory: 128Mi
           requests:
             cpu: 100m
             memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: operator
+    component: orchestrator
+  name: operator-orchestrator
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: operator
+      component: orchestrator
+  template:
+    metadata:
+      labels:
+        app: operator
+        component: orchestrator
+    spec:
+      containers:
       - name: orchestrator
         args:
         - --orchestrator
@@ -83,11 +108,33 @@ spec:
           timeoutSeconds: 1
         resources:
           limits:
-            cpu: 100m
+            cpu: 1000m
             memory: 128Mi
           requests:
             cpu: 100m
             memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: operator
+    component: api-server
+  name: operator-api-server
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: operator
+      component: api-server
+  template:
+    metadata:
+      labels:
+        app: operator
+        component: api-server
+    spec:
+      containers:
       - name: api-server
         args:
         - --front-end
@@ -107,6 +154,7 @@ spec:
           timeoutSeconds: 1
         ports:
         - containerPort: 5002
+          hostPort: 5002
           protocol: TCP
           name: http
         readinessProbe:
@@ -117,7 +165,7 @@ spec:
           timeoutSeconds: 1
         resources:
           limits:
-            cpu: 100m
+            cpu: 1000m
             memory: 128Mi
           requests:
             cpu: 100m

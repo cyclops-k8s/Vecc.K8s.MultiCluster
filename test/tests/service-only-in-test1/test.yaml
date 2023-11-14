@@ -8,22 +8,22 @@ kind: Deployment
 metadata:
   labels:
     app: nginx
-  name: operator
+  name: test
   namespace: only-in-test1
 spec:
   replicas: 1
   revisionHistoryLimit: 0
   selector:
     matchLabels:
-      app: operator
+      app: nginx
   template:
     metadata:
       labels:
-        app: operator
+        app: nginx
     spec:
       containers:
-      - image: operator
-        name: operator
+      - name: nginx
+        image: nginx
         ports:
         - containerPort: 80
           name: http

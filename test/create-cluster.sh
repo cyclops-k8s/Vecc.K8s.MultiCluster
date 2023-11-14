@@ -52,7 +52,7 @@ kubectl apply -f .test/nginx.yaml
 
 
 set +e
-spinner_wait "${G}Waiting for nginx to get applied" "
+spinner_wait "${G}Waiting for nginx to get applied${NOCOLOR}" "
 T=1
 while [ \$T != 0 ]
 do
@@ -60,6 +60,7 @@ do
   T=\$?
   [ \$T != 0 ] && sleep 1
 done
+true
 "
 
 echo_color "${G}Setting default namespace to mcingress-operator"
