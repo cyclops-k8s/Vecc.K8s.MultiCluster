@@ -1,18 +1,21 @@
 #!/bin/bash
+DIRECTORY="$(pwd)"
+TEMPDIRECTORY=$(mktemp -d)
 
 export reg_name='kind-registry'
 export reg_port='5001'
-export DIRECTORY="`pwd`"
-export TEMPDIRECTORY=`mktemp -d`
+export DIRECTORY
+export TEMPDIRECTORY
 
+# shellcheck disable=SC2317
 function terminate() {
     pkill kubectl-relay
 
-    mkdir -p $TEMPDIRECTORY/results
-    mv $TEMPDIRECTORY/* $TEMPDIRECTORY/results 2> /dev/null
-    RESULTS="results-`date +%Y%m%d-%H%M%S`.tgz"
+    mkdir -p "$TEMPDIRECTORY/results"
+    mv "$TEMPDIRECTORY"/* "$TEMPDIRECTORY"/results 2> /dev/null
+    RESULTS="results-$(date +%Y%m%d-%H%M%S).tgz"
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
-    tar -czf $DIRECTORY/$RESULTS --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
+    tar -czf "$DIRECTORY/$RESULTS" --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
     rm -rf "$DIRECTORY/results"
     cp -r "$TEMPDIRECTORY/results" "$DIRECTORY"
     rm -rf "$TEMPDIRECTORY"
@@ -22,7 +25,7 @@ trap terminate EXIT
 
 set -e
 
-. functions.sh
+. ./functions.sh
 
 echo_color "${G}Downloading kind"
 
@@ -51,20 +54,23 @@ echo_color "${G}Setting up and downloading krew"
 OS="$(uname | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')"
 KREW="krew-${OS}_${ARCH}"
-export KREW_ROOT=`pwd`/.test/krews
+KREW_ROOT="$(pwd)/.test/krews"
+export KREW_ROOT
+
 if [ ! -f ./.test/krew ]
 then
-  curl -fsSLo ./.test/${KREW}.tar.gz "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz"
+  curl -fsSLo "./.test/${KREW}.tar.gz" "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz"
   tar zxvf ".test/${KREW}.tar.gz" --transform="s/^/.test\//"
-  mv .test/${KREW} .test/krew
+  mv ".test/${KREW}" ".test/krew"
   .test/krew install relay
 fi
 
 echo_color "${G}Setting path"
-PATH="`pwd`/.test:${KREW_ROOT}/bin:$PATH"
+PATH="$(pwd)/.test:${KREW_ROOT}/bin:$PATH"
 
 echo_color "${G}Setting KUBECONFIG path"
-export KUBECONFIG=`pwd`/.test/cluster.config
+KUBECONFIG_FILE=$(pwd)/.test/cluster.config
+export KUBECONFIG="$KUBECONFIG_FILE"
 
 echo_color "${G}Setting up Kind cluster 1"
 
@@ -74,10 +80,10 @@ docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:lat
 docker image push localhost:${reg_port}/multicluster:latest
 
 echo_color "${G}Removing old clusters"
-# kind delete clusters --all
+kind delete clusters --all
 
-# ./create-cluster.sh test1
-# ./create-cluster.sh test2
+./create-cluster.sh test1
+./create-cluster.sh test2
 
 use_context 1
 echo_color "${G}Kind-Test1"
@@ -90,8 +96,8 @@ kubectl get ns
 set +e
 
 (
-    eval "kubectl relay --context kind-test1 --namespace mcingress-operator deployment/operator-dns-server 1053:1053@udp" 1> $TEMPDIRECTORY/Relay-1.txt 2>&1 &
-    eval "kubectl relay --context kind-test2 --namespace mcingress-operator deployment/operator-dns-server 1054:1053@udp" 1> $TEMPDIRECTORY/Relay-2.txt 2>&1 &
+    eval "kubectl relay --context kind-test1 --namespace mcingress-operator deployment/operator-dns-server 1053:1053@udp" 1> "$TEMPDIRECTORY/Relay-1.txt" 2>&1 &
+    eval "kubectl relay --context kind-test2 --namespace mcingress-operator deployment/operator-dns-server 1054:1053@udp" 1> "$TEMPDIRECTORY/Relay-2.txt" 2>&1 &
 )
 
 spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" "
@@ -117,12 +123,14 @@ set +e
 
 echo_color "${G}Getting cluster 1 ingress IP"
 use_context 1
-export CLUSTER1IP=`kubectl get nodes --context kind-test1 test1-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r`
+CLUSTER1IP=$(kubectl get nodes --context kind-test1 test1-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
+export CLUSTER1IP
 echo_color "${Y}${CLUSTER1IP}"
 
 echo_color "${G}Getting cluster 2 ingress IP"
 use_context 2
-export CLUSTER2IP=`kubectl get nodes test2-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r`
+CLUSTER2IP=$(kubectl get nodes test2-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
+export CLUSTER2IP
 echo_color "${Y}${CLUSTER2IP}"
 
 FAILEDTESTS=()
@@ -130,44 +138,46 @@ PASSEDTESTS=()
 PASSEDTESTCOUNT=0
 FAILEDTESTCOUNT=0
 TOTALTESTCOUNT=0
-MYDIR=`pwd`
+MYDIR=$(pwd)
 
 echo_color "${G}Executing tests"
 
-for TEST in `ls tests/`
+for TEST in tests/*
 do
-    let TOTALTESTCOUNT+=1
+    (( TOTALTESTCOUNT++ ))
     echo_color "${G}Executing test - $TEST"
-    cd tests/$TEST
+    cd "$TEST"
     . ./test.sh
     spinner_test "$TEMPDIRECTORY/results/$TEST"
     RESULT=$?
-    cd $MYDIR
+    cd "$MYDIR"
     if [ $RESULT == 0 ]
     then
         echo_color "${G}✓ Test ${Y}$TEST${G} passed"
-        PASSEDTESTS+=($TEST)
-        let PASSEDTESTCOUNT+=1
+        PASSEDTESTS+=("$TEST")
+        (( PASSEDTESTCOUNT++ ))
     else
         echo_color "${R}✗ Test ${Y}$TEST${R} failed"
-        FAILEDTESTS+=($TEST)
-        let FAILEDTESTCOUNT+=1
+        FAILEDTESTS+=("$TEST")
+        (( FAILEDTESTCOUNT++ ))
     fi
     echo_color "${G}-------"
 done
 
 echo_color "${G}All tests executed"
 echo_color "Passed Tests - $PASSEDTESTCOUNT of $TOTALTESTCOUNT"
-for TEST in $PASSEDTESTS
+for TEST in "${PASSEDTESTS[@]}"
 do
     echo_color "${G}✓ Test ${Y}$TEST${G} passed"
 done
 
 RESULTCODE=0
 echo_color "Failed Tests - $FAILEDTESTCOUNT of $TOTALTESTCOUNT"
-for TEST in $FAILEDTESTS
+for TEST in "${FAILEDTESTS[@]}"
 do
     RESULTCODE=1
     echo_color "${R}✗ Test ${Y}$TEST${R} failed"
 done
+
+exit $RESULTCODE
 # sleep 100

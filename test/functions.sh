@@ -28,8 +28,8 @@ wait_for_resource() {
     WAITFOR=$2
     SELECTOR=$3
     TIMEOUT=${4:-30}
-    STARTTIME=`date +%s`
-    ESTATE=$-; ESTATE=`get_sete "$ESTATE"`
+    STARTTIME=$(date +%s)
+    ESTATE=$-; ESTATE=$(get_sete "$ESTATE")
 
     set +e
 
@@ -38,19 +38,19 @@ wait_for_resource() {
 
     while [ $LASTEXITCODE != 0 ]
     do
-        kubectl wait --for=$WAITFOR $RESOURCE --selector=$SELECTOR --timeout=1s 1> /dev/null 2> /dev/null
+        kubectl wait --for="$WAITFOR" "$RESOURCE" --selector="$SELECTOR" --timeout=1s 1> /dev/null 2> /dev/null
         LASTEXITCODE=$?
         if [ $LASTEXITCODE != 0 ]
         then
             # check to see if we timed out
-            NOW=`date +%s`
-            (( ($NOW-$STARTTIME) > $TIMEOUT )) && echo "Timeout expired" && set_sete $ESTATE && return 1
+            NOW=$(date +%s)
+            (( (NOW-STARTTIME) > TIMEOUT )) && echo "Timeout expired" && set_sete "$ESTATE" && return 1
             echo "Timeout not expired, waiting for another second."
             sleep 1
         fi
     done
 
-    set_sete $ESTATE
+    set_sete "$ESTATE"
     return 0
 }
 
@@ -59,7 +59,7 @@ wait_for_resource() {
 #
 #   returns an exit code of 0 if succesfull, non zero if not.
 set_namespace() {
-    kubectl config set-context --current --namespace $1
+    kubectl config set-context --current --namespace "$1"
 
     return $?
 }
@@ -74,10 +74,10 @@ set_namespace() {
 #      get_ip 1 only-in-cluster-test1.test1
 get_ip() {
     PORT=""
-    if [ $1 == 1 ]
+    if [ "$1" == "1" ]
     then
         PORT="1053"
-    elif [ $1 == 2 ]
+    elif [ "$1" == "2" ]
     then
         PORT="1054"
     else
@@ -85,12 +85,12 @@ get_ip() {
         return 1
     fi
 
-    IP=`dig $2 @localhost -p $PORT \
+    IP=$(dig "$2" @localhost -p $PORT \
             | grep -o -E "^$2.*" \
             | grep -o -E "[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?" \
-            || true`
+            || true)
 
-    echo -n $IP
+    echo -n "$IP"
 }
 
 # usage:
@@ -100,54 +100,61 @@ get_ip() {
 #   returns an exit code of 0 if the ingress is recognized by NGINX within the timeout
 #
 # remarks:
-#   If timeout is not specified, it defaults to 45 seconds
+#   If timeout is not specified, it defaults to 90 seconds
 wait_for_ingress() {
     INGRESS=$1
-    TIMEOUT=${2:-45}
-    STARTTIME=`date +%s`
+    TIMEOUT=${2:-90}
+    STARTTIME=$(date +%s)
     LASTEXITCODE=1
-    ESTATE=$-; ESTATE=`get_sete "$ESTATE"`
+    ESTATE=$-; ESTATE=$(get_sete "$ESTATE")
 
     set +e
 
     while [ $LASTEXITCODE != 0 ]
     do
-        IP=`kubectl get ingress $INGRESS -o jsonpath="{.status.loadBalancer.ingress[0].ip}"`
+        IP=$(kubectl get ingress "$INGRESS" -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
         LASTEXITCODE=$?
         if [[ "$LASTEXITCODE" != "0" || "$IP" == "" ]]
         then
             # check to see if we timed out
-            NOW=`date +%s`
-            if (( ($NOW-$STARTTIME) > $TIMEOUT ))
+            NOW=$(date +%s)
+            if (( (NOW-STARTTIME) > TIMEOUT ))
             then
                 echo "Timeout expired"
-                set_sete $ESTATE
+                set_sete "$ESTATE"
                 return 1
             fi
             echo "Timeout not expired, waiting for another second."
             sleep 1
-            $LASTEXITCODE=1
+            LASTEXITCODE=1
         fi
     done
-    NOW=`date +%s`
-    let ELAPSED=$NOW-$STARTTIME || true
+    NOW=$(date +%s)
+    (( ELAPSED=NOW-STARTTIME )) || true
     echo "It took $ELAPSED seconds for the ingress to be recognized by NGINX"
-    set_sete $ESTATE
+    set_sete "$ESTATE"
 
     return 0
 }
 
 get_sete() {
-    echo $1 | grep -o e 1> /dev/null 2> /dev/null && echo -n "1" || echo -n "0"
+    echo "$1" | grep -o e 1> /dev/null 2> /dev/null && echo -n "1" || echo -n "0"
 }
 
 set_sete() {
-    [ "$1" == "1" ] && set -e || set +e
+    if [ "$1" == "1" ]
+    then
+        set -e
+    else
+        set +e
+    fi
 }
 
 R='\033[31m'   #'31' is Red's ANSI color code
 G='\033[32m'   #'32' is Green's ANSI color code
+# shellcheck disable=SC2034
 Y='\033[33m'   #'33' is Yellow's ANSI color code
+# shellcheck disable=SC2034
 B='\033[34m'   #'34' is Blue's ANSI color code
 
 NOCOLOR='\033[0m'
@@ -197,17 +204,20 @@ spinner_wait() {
     (
         TEXT=$1
         shift
+
+        # we use eval like this because we want to execute the bash snippets that get passed in in the background. eval used in this way is required for that.
+        # shellcheck disable=SC2294
         eval "$@" &
 
         PID=$!
-        SPINNER=("⣷" "⣯" "⣟" "⡿" "⢿" "⣻" "⣽" "⣾")
+        SPINNER=("${G}⣷${NOCOLOR}" "${G}⣯${NOCOLOR}" "${G}⣟${NOCOLOR}" "${G}⡿${NOCOLOR}" "${B}⢿${NOCOLOR}" "${B}⣻${NOCOLOR}" "${B}⣽${NOCOLOR}" "${B}⣾${NOCOLOR}")
         POS=0
 
         while (kill -0 $PID 1> /dev/null 2> /dev/null)
         do
-            let POS+=1
+            (( POS++ ))
             [ $POS == 8 ] && POS=0
-            printf "\r${SPINNER[$POS]} $TEXT"
+            echo -en "\r${SPINNER[$POS]} $TEXT"
             sleep .1
         done
         wait $PID
@@ -228,14 +238,14 @@ spinner_test() {
     mkdir -p "$OUTPUTDIRECTORY"
     spinner_setup "$OUTPUTDIRECTORY"
     SETUPRESULT=$?
-    if [ $SETUPRESULT==0 ]
+    if [ $SETUPRESULT == 0 ]
     then
         spinner_assert "$OUTPUTDIRECTORY"
         ASSERTRESULT=$?
     fi
     spinner_cleanup "$OUTPUTDIRECTORY"
     CLEANUPRESULT=$?
-    let RESULT=$SETUPRESULT+$ASSERTRESULT+$CLEANUPRESULT || true
+    (( RESULT = SETUPRESULT + ASSERTRESULT + CLEANUPRESULT )) || true
 
     return $RESULT
 }
