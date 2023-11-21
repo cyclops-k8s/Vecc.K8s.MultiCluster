@@ -3,42 +3,7 @@
 . ../../functions.sh
 
 setup() {
-    # set -e
-    use_context 1
-    echo "Applying manifests"
-    kubectl apply -f test1.yaml
-    RETCODE=$?
-    echo "Setting namespace"
-    set_namespace test-in-both-equal-weight
-    (( RETCODE+=$? )) || true
-
-    use_context 2
-    echo "Applying manifests"
-    kubectl apply -f test2.yaml
-    RETCODE=$?
-    echo "Setting namespace"
-    set_namespace test-in-both-equal-weight
-    (( RETCODE+=$? )) || true
-
-    use_context 1
-    echo "Waiting for resource"
-    wait_for_resource pod condition=ready app=nginx
-    (( RETCODE+=$? )) || true
-    echo "Waiting for ingress"
-    wait_for_ingress nginx
-    (( RETCODE+=$? )) || true
-
-    use_context 2
-    echo "Waiting for resource"
-    wait_for_resource pod condition=ready app=nginx
-    (( RETCODE+=$? )) || true
-    echo "Waiting for ingress"
-    wait_for_ingress nginx
-    (( RETCODE+=$? )) || true
-
-    echo "Giving it a second for the api's to register everything"
-    sleep 1
-    return $RETCODE
+    return 0
 }
 
 assert() {
@@ -47,13 +12,68 @@ assert() {
     COUNT=0
     COUNTOF1=0
     COUNTOF2=0
+    
+    echo "Restarting redis in context 1"
+    use_context 1
+    set_namespace mcingress-operator
+    echo "Restarting redis"
+    kubectl rollout restart redis
+    sleep 15
+    wait_for_resource pod condition=ready app=redis
+
+    echo "Restarting redis in context 2"
+    use_context 2
+    set_namespace mcingress-operator
+    echo "Restarting redis"
+    kubectl rollout restart redis
+    sleep 15
+    wait_for_resource pod condition=ready app=redis
+
+    # set -e
+    use_context 1
+    echo "Applying manifests"
+    kubectl apply -f test1.yaml
+    RETCODE=$?
+    echo "Setting namespace"
+    set_namespace redis-restart
+    (( RETCODE+=$? )) || true
+
+    use_context 2
+    echo "Applying manifests"
+    kubectl apply -f test2.yaml
+    RETCODE=$?
+    echo "Setting namespace"
+    set_namespace redis-restart
+    (( RETCODE+=$? )) || true
+
+    use_context 1
+    echo "Waiting for resource"
+    wait_for_resource pod condition=ready app=nginx
+    (( RETCODE+=$? )) || true
+    echo "Waiting for ingress"
+    wait_for_ingress nginx
+    (( RETCODE+=$? )) || true
+
+    use_context 2
+    echo "Waiting for resource"
+    wait_for_resource pod condition=ready app=nginx
+    (( RETCODE+=$? )) || true
+    echo "Waiting for ingress"
+    wait_for_ingress nginx
+    (( RETCODE+=$? )) || true
+
+    if [ $RETCODE != 0 ]
+    then
+        echo "Unable to establish test case"
+        return $RETCODE
+    fi
 
     while (( COUNT < 100 ))
     do
         echo "Running $COUNT of 100"
         (( COUNT++ ))
 
-        ACTUAL=$(get_ip 1 test-in-both-equal-weight.test)
+        ACTUAL=$(get_ip 1 redis-restart.test)
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
@@ -68,7 +88,7 @@ assert() {
             (( COUNTOF2++ ))
         fi
 
-        ACTUAL=$(get_ip 2 test-in-both-equal-weight.test)
+        ACTUAL=$(get_ip 2 redis-restart.test)
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 2 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
@@ -102,11 +122,11 @@ assert() {
 
 cleanup() {
     use_context 1
-    # kubectl delete namespace test-in-both-equal-weight
-    # RESULT=$?
+    kubectl delete namespace redis-restart
+    RESULT=$?
 
-    # use_context 2
-    # kubectl delete namespace test-in-both-equal-weight
+    use_context 2
+    kubectl delete namespace redis-restart
     (( RESULT+=$? )) || true
 
     return $?

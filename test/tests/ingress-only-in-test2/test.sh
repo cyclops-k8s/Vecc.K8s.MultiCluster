@@ -50,6 +50,7 @@ assert() {
 }
 
 cleanup() {
-    # kubectl delete namespace only-in-test1
+    kubectl delete namespace only-in-test2
+    
     return $?
 }

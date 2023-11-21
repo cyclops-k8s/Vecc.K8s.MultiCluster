@@ -213,7 +213,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
         {
             var key = GetClusterHeartbeatKey(clusterIdentifier);
-            await _database.StringSetAsync(clusterIdentifier, heartbeat.ToString("O"));
+            await _database.StringSetAsync(key, heartbeat.ToString("O"));
         }
 
         [Trace]

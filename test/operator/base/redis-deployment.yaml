@@ -16,6 +16,14 @@ spec:
         image: redis:7
         command:
           - redis-server
+          - --save
+          - "60"
+          - "1"
+          - --loglevel warning
+          - --appendonly
+          - "yes"
+          - --appendfsync
+          - always
         env:
         - name: MASTER
           value: "true"
@@ -30,4 +38,6 @@ spec:
           name: data
       volumes:
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: redis
+

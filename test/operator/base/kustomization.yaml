@@ -5,6 +5,7 @@ resources:
 - operator-role.yaml
 - operator-role-binding.yaml
 - redis-deployment.yaml
+- redis-pvc.yaml
 - redis-service.yaml
 - service-api.yaml
 - service-dns.yaml

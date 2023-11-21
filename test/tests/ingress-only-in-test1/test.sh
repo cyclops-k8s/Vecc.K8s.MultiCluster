@@ -48,3 +48,8 @@ assert() {
 
     return $RESULT
 }
+
+cleanup() {
+    kubectl delete namespace only-in-test1
+    return $?
+}

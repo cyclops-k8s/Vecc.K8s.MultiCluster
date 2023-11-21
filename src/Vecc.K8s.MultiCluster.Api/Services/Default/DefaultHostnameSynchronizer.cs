@@ -351,7 +351,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task WatchClusterHeartbeatsAsync()
         {
-            while (_shutdownCancellationToken.IsCancellationRequested)
+            while (!_shutdownCancellationToken.IsCancellationRequested)
             {
                 try
                 {
