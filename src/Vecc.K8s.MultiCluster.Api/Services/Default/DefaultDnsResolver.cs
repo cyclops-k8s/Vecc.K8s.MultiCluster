@@ -78,13 +78,23 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task InitializeAsync()
         {
             var hostnames = await _cache.GetHostnamesAsync(string.Empty);
+
             if (hostnames != null)
             {
                 foreach (var hostname in hostnames)
                 {
                     await RefreshHostInformationAsync(hostname);
                 }
+
+                foreach (var hostname in _hosts.Keys.ToArray())
+                {
+                    if (!hostnames.Contains(hostname))
+                    {
+                        _hosts.Remove(hostname, out var _);
+                    }
+                }
             }
+
         }
 
         [Transaction]

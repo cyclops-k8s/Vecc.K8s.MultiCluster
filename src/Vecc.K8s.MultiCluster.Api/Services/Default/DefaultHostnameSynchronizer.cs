@@ -379,6 +379,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     foreach (var clusterIdentifier in clusterIdentifiers)
                     {
                         var clusterHeartbeat = await _cache.GetClusterHeartbeatTimeAsync(clusterIdentifier);
+
                         if (clusterHeartbeat < timeout)
                         {
                             var clusterHosts = await _cache.GetHostnamesAsync(clusterIdentifier);
@@ -432,25 +433,32 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     continue;
                 }
 
-
-                await SendHeartbeats();
+                try
+                {
+                    await SendHeartbeats();
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Error sending heartbeats");
+                }
             }
         }
 
         [Transaction]
         private async Task SendHeartbeats()
         {
-            if (!_multiClusterOptions.Value.Peers.Any())
-            {
-                _logger.LogTrace("No peers, not doing anything.");
-                return;
-            }
-
             _logger.LogInformation("Sending heartbeat");
             //set our own heartbeat
             var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
             var now = _dateTimeProvider.UtcNow;
             await _cache.SetClusterHeartbeatAsync(localClusterIdentifier, now);
+
+            if (!_multiClusterOptions.Value.Peers.Any())
+            {
+                _logger.LogTrace("No peers, not processing them.");
+                return;
+            }
+
             var heartbeatTasks = _multiClusterOptions.Value.Peers.Select(peer =>
             {
                 try

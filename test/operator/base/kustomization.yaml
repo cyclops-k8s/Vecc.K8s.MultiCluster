@@ -9,5 +9,11 @@ resources:
 - redis-service.yaml
 - service-api.yaml
 - service-dns.yaml
+
+- ingress-namespace.yaml
+- ingress-deployment.yaml
+- ingress-role-binding.yaml
+- ingress-role.yaml
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

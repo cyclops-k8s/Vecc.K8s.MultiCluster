@@ -1,5 +1,6 @@
 ﻿using NewRelic.Api.Agent;
 using StackExchange.Redis;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
@@ -81,16 +82,24 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
         {
             var key = GetClusterHeartbeatKey(clusterIdentifier);
-            var heartbeat = await _database.StringGetAsync(key);
-            if (DateTime.TryParseExact(heartbeat, "O", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
+
+            if (await _database.KeyExistsAsync(key))
             {
-                return result;
+                var heartbeat = await _database.StringGetAsync(key);
+
+                if (DateTime.TryParseExact(heartbeat, "O", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
+                {
+                    return result;
+                }
+                else
+                {
+                    var exception = new FormatException($"Unable to parse datetime value {(string?)heartbeat}");
+                    _logger.LogError(exception, "Unable to parse heartbeat for cluster {@clusteridentifier}", clusterIdentifier);
+                    throw exception;
+                }
             }
-            else
-            {
-                _logger.LogError("Unable to parse heartbeat {@heartbeat} for cluster {@clusteridentifier}", (string?)heartbeat, clusterIdentifier);
-                return default;
-            }
+
+            return default;
         }
 
         [Trace]
@@ -187,7 +196,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname)
         {
-            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname);;
+            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname); ;
 
             await _database.KeyDeleteAsync(key);
             await RefreshHostnameIps(hostname);
@@ -220,7 +229,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task SetEndpointsCountAsync(string ns, string name, int count)
         {
             var key = GetEndpointKey(ns, name);
-            await _database.StringSetAsync(key, count.ToString("O"));
+            await _database.StringSetAsync(key, count.ToString());
         }
 
         [Trace]
@@ -229,24 +238,32 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var result = false;
             await VerifyClusterExistsAsync(clusterIdentifier);
 
-            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname); ;
+            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname);
             var hostModel = new HostModel
             {
                 HostIPs = hostIPs,
                 Hostname = hostname,
                 ClusterIdentifier = clusterIdentifier
             };
-            var ips = JsonSerializer.Serialize(hostModel);
             var oldConfig = await _database.StringGetAsync(key);
-
-            if (!oldConfig.HasValue || oldConfig != ips)
+            if (oldConfig.HasValue && hostIPs.Length == 0)
             {
+                _logger.LogInformation("No IPS for {hostname}/{cluster}", hostname, clusterIdentifier);
                 result = true;
-                var status = await _database.StringSetAsync(key, ips);
-
-                if (!status)
+                await _database.KeyDeleteAsync(key);
+            }
+            else
+            {
+                var ips = JsonSerializer.Serialize(hostModel);
+                if (!oldConfig.HasValue || oldConfig != ips)
                 {
-                    _logger.LogError("Unable to update ips for host {@hostname}", hostname);
+                    result = true;
+                    var status = await _database.StringSetAsync(key, ips);
+
+                    if (!status)
+                    {
+                        _logger.LogError("Unable to update ips for host {@hostname}", hostname);
+                    }
                 }
             }
 

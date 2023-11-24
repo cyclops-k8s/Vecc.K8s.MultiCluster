@@ -39,29 +39,44 @@ data:
     help: "https://kind.sigs.k8s.io/docs/user/local-registry/"
 EOF
 
-echo_color "${G}Downloading nginx manifest"
+echo_color "${G}Applying operators"
 kustomize build operator/$1 | kubectl apply -f -
-curl -o .test/nginx.yaml -L https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-sed -i 's/- --publish-status-address=localhost//' .test/nginx.yaml 
 
-echo_color "${G}Labeling node for ingress"
-kubectl label node $1-control-plane ingress-ready=true
+set_namespace mcingress-operator
+wait_for_resource pod condition=ready app=redis 90
+echo_color "${G}Waiting for 5 seconds"
+sleep 5
+wait_for_resource pod condition=ready component=dns-server 90
+wait_for_resource pod condition=ready component=orchestrator 90
+wait_for_resource pod condition=ready component=api-server 90
 
-echo_color "${G}Applying nginx manifest"
-kubectl apply -f .test/nginx.yaml
+set_namespace ingress-operator
+wait_for_resource pod condition=ready operator=ingressoperator 90
+
+set_namespace mcingress-operator
+
+# echo_color "${G}Downloading nginx manifest"
+# curl -o .test/nginx.yaml -L https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+# sed -i 's/- --publish-status-address=localhost//' .test/nginx.yaml 
+
+# echo_color "${G}Labeling node for ingress"
+# kubectl label node $1-control-plane ingress-ready=true
+
+# echo_color "${G}Applying nginx manifest"
+# kubectl apply -f .test/nginx.yaml
 
 
-set +e
-spinner_wait "${G}Waiting for nginx to get applied${NOCOLOR}" "
-T=1
-while [ \$T != 0 ]
-do
-  kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=1s 1> /dev/null 2> /dev/null
-  T=\$?
-  [ \$T != 0 ] && sleep 1
-done
-true
-"
+# set +e
+# spinner_wait "${G}Waiting for nginx to get applied${NOCOLOR}" "
+# T=1
+# while [ \$T != 0 ]
+# do
+#   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=1s 1> /dev/null 2> /dev/null
+#   T=\$?
+#   [ \$T != 0 ] && sleep 1
+# done
+# true
+# "
 
 echo_color "${G}Setting default namespace to mcingress-operator"
 kubectl config set-context kind-$1 --namespace=mcingress-operator

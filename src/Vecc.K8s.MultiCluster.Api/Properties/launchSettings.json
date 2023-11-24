@@ -8,8 +8,8 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "http://localhost:5140",
-      "commandLineArgs": "--orchestrator"
+      "applicationUrl": "http://localhost:5141",
+      "commandLineArgs": "--dns-server"
     },
     "IIS Express": {
       "commandName": "IISExpress",

@@ -72,17 +72,22 @@ echo_color "${G}Setting KUBECONFIG path"
 KUBECONFIG_FILE=$(pwd)/.test/cluster.config
 export KUBECONFIG="$KUBECONFIG_FILE"
 
-echo_color "${G}Setting up Kind cluster 1"
 
 ./create-docker-registry.sh
 
 docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:latest ../
 docker image push localhost:${reg_port}/multicluster:latest
 
+docker image build -t localhost:${reg_port}/ingress-operator:latest ingress-operator
+docker image push localhost:${reg_port}/ingress-operator:latest
+
 echo_color "${G}Removing old clusters"
 kind delete clusters --all
 
+echo_color "${G}Setting up Kind cluster 1"
 ./create-cluster.sh test1
+
+echo_color "${G}Setting up Kind cluster 2"
 ./create-cluster.sh test2
 
 use_context 1
@@ -123,13 +128,13 @@ set +e
 
 echo_color "${G}Getting cluster 1 ingress IP"
 use_context 1
-CLUSTER1IP=$(kubectl get nodes --context kind-test1 test1-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
+CLUSTER1IP="192.168.0.1" #$(kubectl get nodes --context kind-test1 test1-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
 export CLUSTER1IP
 echo_color "${Y}${CLUSTER1IP}"
 
 echo_color "${G}Getting cluster 2 ingress IP"
 use_context 2
-CLUSTER2IP=$(kubectl get nodes test2-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
+CLUSTER2IP="192.168.0.2" #$(kubectl get nodes test2-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
 export CLUSTER2IP
 echo_color "${Y}${CLUSTER2IP}"
 

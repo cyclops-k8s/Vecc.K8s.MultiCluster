@@ -5,8 +5,11 @@ using KubeOps.Operator.Leadership;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using Serilog.Data;
 using StackExchange.Redis;
+using StackExchange.Redis.Maintenance;
 using System.Net;
+using System.Net.NetworkInformation;
 using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
@@ -96,7 +99,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("Redis");
     ConfigurationOptions configurationOptions;
-
+    var logger = sp.GetRequiredService<ILogger<Program>>();
     if (connectionString == null && builder.Environment.IsDevelopment())
     {
         var endpoints = new EndPointCollection { new IPEndPoint(IPAddress.Loopback, 6379) };
@@ -106,13 +109,25 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     {
         if (connectionString == null)
         {
-            var logger = sp.GetRequiredService<ILogger<Program>>();
+            logger.LogError("Redis connection string must be set.");
             throw new Exception("Redis connection string must be set.");
         }
+
         configurationOptions = ConfigurationOptions.Parse(connectionString);
+        configurationOptions.ReconnectRetryPolicy = new LinearRetry(int.MaxValue);
     }
 
     var multiplexer = ConnectionMultiplexer.Connect(configurationOptions);
+
+    multiplexer.ConfigurationChanged += (sender, e) => { Multiplexer_ConfigurationChanged(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.ConfigurationChangedBroadcast += (sender, e) => { Multiplexer_ConfigurationChangedBroadcast(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.ConnectionFailed += (sender, e) => { Multiplexer_ConnectionFailed(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.ConnectionRestored += (sender, e) => { Multiplexer_ConnectionRestored(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.ErrorMessage += (sender, e) => { Multiplexer_ErrorMessage(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.HashSlotMoved += (sender, e) => { Multiplexer_HashSlotMoved(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.InternalError += (sender, e) => { Multiplexer_InternalError(logger, sender as IConnectionMultiplexer, sp, e); };
+    multiplexer.ServerMaintenanceEvent += (sender, e) => { Multiplexer_ServerMaintenanceEvent(logger, sender as IConnectionMultiplexer, sp, e); };
+
     return multiplexer;
 });
 
@@ -220,3 +235,57 @@ logger.LogInformation("Waiting on process tasks");
 await Task.WhenAll(processTasks);
 
 logger.LogInformation("Terminated");
+
+void Multiplexer_ServerMaintenanceEvent(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, ServerMaintenanceEvent e)
+{
+    logger.LogError("Redis server maintenance: {@event}", e);
+}
+
+void Multiplexer_InternalError(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, InternalErrorEventArgs e)
+{
+    logger.LogError("Redis internal error: {@event}", e);
+}
+
+void Multiplexer_HashSlotMoved(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, HashSlotMovedEventArgs e)
+{
+    logger.LogDebug("Redis hash slot moved: {@event}", e);
+}
+
+void Multiplexer_ErrorMessage(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, RedisErrorEventArgs e)
+{
+    logger.LogError("Redis error: {@event}", e);
+}
+
+void Multiplexer_ConfigurationChangedBroadcast(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, EndPointEventArgs e)
+{
+    logger.LogInformation("Redis configuration changed broadcast: {@event}", e);
+}
+
+void Multiplexer_ConfigurationChanged(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, EndPointEventArgs e)
+{
+    logger.LogInformation("Redis configuration changed: {@event}", e);
+}
+
+async void Multiplexer_ConnectionRestored(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, ConnectionFailedEventArgs e)
+{
+    logger.LogInformation("Redis connection restored: {@event}", e);
+    if (e.ConnectionType == ConnectionType.Subscription)
+    {
+        try
+        {
+            logger.LogInformation("Redis connection is a subscription, it is restored, initiating dns resolver resync");
+            var dnsResolver = serviceProvider.GetRequiredService<DefaultDnsResolver>();
+            await dnsResolver.InitializeAsync();
+            logger.LogInformation("Resync complete");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Error handling connection restored event.");
+        }
+    }
+}
+
+void Multiplexer_ConnectionFailed(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, ConnectionFailedEventArgs e)
+{
+    logger.LogError("Redis connection failed: {@event}", e);
+}

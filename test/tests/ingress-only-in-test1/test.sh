@@ -23,8 +23,8 @@ setup() {
     wait_for_ingress nginx
     (( RETCODE+=$? )) || true
 
-    echo "Giving it a second for the api's to register everything"
-    sleep 1
+    echo "Giving it 10 seconds for the api's to register everything"
+    sleep 10
     return $RETCODE
 }
 

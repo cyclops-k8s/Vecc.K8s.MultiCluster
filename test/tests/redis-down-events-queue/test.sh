@@ -31,15 +31,15 @@ assert() {
     kubectl apply -f test1.yaml
     RETCODE=$?
     echo "Setting namespace"
-    set_namespace redis-restart
+    set_namespace redis-down-events-queue
     (( RETCODE+=$? )) || true
 
     use_context 2
     echo "Applying manifests"
     kubectl apply -f test2.yaml
-    RETCODE=$?
+    (( RETCODE+=$? )) || true
     echo "Setting namespace"
-    set_namespace redis-restart
+    set_namespace redis-down-events-queue
     (( RETCODE+=$? )) || true
 
     use_context 1
@@ -67,15 +67,14 @@ assert() {
     set_namespace mcingress-operator
     kubectl scale --replicas 1 deployment redis
     wait_for_resource pod condition=ready app=redis
+    (( RETCODE+=$? )) || true
 
     echo "Starting redis in context 2"
     use_context 2
     set_namespace mcingress-operator
     kubectl scale --replicas 1 deployment redis
     wait_for_resource pod condition=ready app=redis
-
-    echo "Waiting 10 seconds for it all to come back up?"
-    sleep 10
+    (( RETCODE+=$? )) || true
 
     if [ $RETCODE != 0 ]
     then
@@ -83,7 +82,10 @@ assert() {
         return $RETCODE
     fi
 
-    while (( COUNT < 100 ))
+    echo "Waiting 90 seconds for it all to come back up"
+    sleep 90
+
+    while [ $COUNT -lt 100 ]
     do
         echo "Running $COUNT of 100"
         (( COUNT++ ))

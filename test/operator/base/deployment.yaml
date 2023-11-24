@@ -5,6 +5,7 @@ metadata:
     app: operator
     component: dns-server
   name: operator-dns-server
+  namespace: mcingress-operator
 spec:
   replicas: 1
   revisionHistoryLimit: 0
@@ -66,6 +67,7 @@ metadata:
     app: operator
     component: orchestrator
   name: operator-orchestrator
+  namespace: mcingress-operator
 spec:
   replicas: 1
   revisionHistoryLimit: 0
@@ -121,6 +123,7 @@ metadata:
     app: operator
     component: api-server
   name: operator-api-server
+  namespace: mcingress-operator
 spec:
   replicas: 1
   revisionHistoryLimit: 0

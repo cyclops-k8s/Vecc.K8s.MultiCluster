@@ -131,7 +131,7 @@ wait_for_ingress() {
     done
     NOW=$(date +%s)
     (( ELAPSED=NOW-STARTTIME )) || true
-    echo "It took $ELAPSED seconds for the ingress to be recognized by NGINX"
+    echo "It took $ELAPSED seconds for the ingress to be configured"
     set_sete "$ESTATE"
 
     return 0

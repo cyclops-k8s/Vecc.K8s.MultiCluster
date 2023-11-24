@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: ingress-operator
+  labels:
+    operator-deployment: ingressoperator
+  name: operator
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      operator: ingressoperator
+  template:
+    metadata:
+      labels:
+        operator: ingressoperator
+    spec:
+      containers:
+      - env:
+        - name: ingressip
+          value: 192.168.0.1
+        image: localhost:5001/ingress-operator:latest
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        name: operator
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 128Mi
+          requests:
+            cpu: 1000m
+            memory: 64Mi
+      terminationGracePeriodSeconds: 10

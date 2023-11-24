@@ -96,21 +96,23 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             foreach (var ingressNamespace in namespacedIngresses)
             {
+                using var namespaceScope = _logger.BeginScope("{@namespace}", ingressNamespace.Key);
                 var valid = true;
                 if (!namespacedEndpoints.TryGetValue(ingressNamespace.Key, out var endpoints))
                 {
                     valid = false;
-                    _logger.LogInformation("No endpoints in namespace {@namespace}", ingressNamespace.Key);
+                    _logger.LogInformation("No endpoints in namespace");
                 }
 
                 if (!namespacedServices.TryGetValue(ingressNamespace.Key, out var services))
                 {
                     valid = false;
-                    _logger.LogInformation("No services in namespace {@namespace}", ingressNamespace.Key);
+                    _logger.LogInformation("No services in namespace");
                 }
 
                 foreach (var ingress in ingressNamespace.Value)
                 {
+                    using var ingressScope = _logger.BeginScope("{ingress}", ingress.Name());
                     if (valid && IsIngressValid(ingress, services!, endpoints!))
                     {
                         _logger.LogInformation("Ingress is valid, marking all hostnames as good");
@@ -140,22 +142,15 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             foreach (var ingress in hostnameValidIngresses)
             {
+                using var ingressScope = _logger.BeginScope("{@hostname}", ingress.Key);
                 if (hostnameInvalidIngresses.ContainsKey(ingress.Key))
                 {
-                    _logger.LogWarning("Hostname was marked as invalid {@hostname}", ingress.Key);
+                    _logger.LogWarning("Hostname was marked as invalid");
                     continue;
                 }
 
-                _logger.LogInformation("Hostname is marked as valid {@hostname}", ingress.Key);
+                _logger.LogInformation("Hostname is marked as valid");
                 result.Add(ingress.Key, ingress.Value);
-            }
-
-            foreach (var ingress in hostnameInvalidIngresses)
-            {
-                if (!hostnameValidIngresses.ContainsKey(ingress.Key))
-                {
-                    _logger.LogWarning("Hostname was marked as invalid {@hostname}", ingress.Key);
-                }
             }
 
             return Task.FromResult(result);
@@ -164,6 +159,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, IList<V1Endpoints> endpoints)
         {
+            using var _ingressScope = _logger.BeginScope("{namespace}/{ingress}", ingress.Namespace(), ingress.Name());
+
             if (ingress.Status == null)
             {
                 _logger.LogWarning("Ingress status is null");
@@ -272,7 +269,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public Task<IList<string>> GetRelatedServiceNamesAsync(V1Ingress ingress)
         {
             var ns = ingress.Namespace();
-            var rules = ingress.Spec.Rules?.Where(rule=>rule?.Http != null).ToList() ?? new List<V1IngressRule>();
+            var rules = ingress.Spec.Rules?.Where(rule => rule?.Http != null).ToList() ?? new List<V1IngressRule>();
             var paths = rules.SelectMany(rule => rule.Http.Paths).Where(path => path?.Backend.Service != null);
             var result = paths.Select(path => path.Backend.Service.Name).ToList();
             return Task.FromResult<IList<string>>(result);
@@ -281,6 +278,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         private bool IsBackendValid(V1HTTPIngressPath path)
         {
+            using var pathScope = _logger.BeginScope("{path}", path.Path);
+
             if (path.Backend == null)
             {
                 _logger.LogWarning("Ingress has a null rule.http.paths.backend");
