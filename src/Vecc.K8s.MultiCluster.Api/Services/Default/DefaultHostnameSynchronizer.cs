@@ -121,10 +121,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     await _cache.SetResourceVersionAsync(service.Metadata.Uid, service.Metadata.ResourceVersion);
                 }
-                _logger.LogDebug("Tracking endpoints");
+                _logger.LogDebug("Tracking endpoints and counts");
                 foreach (var endpoint in endpoints)
                 {
                     await _cache.SetResourceVersionAsync(endpoint.Metadata.Uid, endpoint.Metadata.ResourceVersion);
+                    await _cache.SetEndpointsCountAsync(endpoint.Namespace(), endpoint.Name(), endpoint.Subsets?.Count() ?? 0);
                 }
                 _logger.LogDebug("Done tracking services");
 

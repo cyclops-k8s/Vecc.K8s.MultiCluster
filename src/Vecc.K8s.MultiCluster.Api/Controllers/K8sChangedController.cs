@@ -28,13 +28,13 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         public async Task DeletedAsync(V1Ingress ingress)
         {
-            _logger.LogDebug("Ingress {@namespace}/{@ingress} deleted", ingress.Namespace(), ingress.Name());
+            _logger.LogInformation("Ingress {@namespace}/{@ingress} deleted", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
         }
 
         public async Task<ResourceControllerResult?> ReconcileAsync(V1Ingress ingress)
         {
-            _logger.LogDebug("Ingress {@namespace}/{@ingress} reconcile requested", ingress.Namespace(), ingress.Name());
+            _logger.LogInformation("Ingress {@namespace}/{@ingress} reconcile requested", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
 
             return null;
@@ -42,19 +42,19 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         public async Task StatusModifiedAsync(V1Ingress ingress)
         {
-            _logger.LogDebug("Ingress {@namespace}/{@ingress} state changed", ingress.Namespace(), ingress.Name());
+            _logger.LogInformation("Ingress {@namespace}/{@ingress} state changed", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
         }
 
         public async Task DeletedAsync(V1Service service)
         {
-            _logger.LogDebug("Service {@namespace}/{@service} deleted", service.Namespace(), service.Name());
+            _logger.LogInformation("Service {@namespace}/{@service} deleted", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
         }
 
         public async Task<ResourceControllerResult?> ReconcileAsync(V1Service service)
         {
-            _logger.LogDebug("Service {@namespace}/{@service} reconcile requested", service.Namespace(), service.Name());
+            _logger.LogInformation("Service {@namespace}/{@service} reconcile requested", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
 
             return null;
@@ -62,19 +62,19 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         public async Task StatusModifiedAsync(V1Service service)
         {
-            _logger.LogDebug("Service {@namespace}/{@service} status modified", service.Namespace(), service.Name());
+            _logger.LogInformation("Service {@namespace}/{@service} status modified", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
         }
 
         public async Task DeletedAsync(V1Endpoints endpoints)
         {
-            _logger.LogDebug("Endpoints {@namespace}/{@endpoints} deleted", endpoints.Namespace(), endpoints.Name());
+            _logger.LogInformation("Endpoints {@namespace}/{@endpoints} deleted", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
         public async Task<ResourceControllerResult?> ReconcileAsync(V1Endpoints endpoints)
         {
-            _logger.LogDebug("Endpoints {@namespace}/{@endpoints} reconcile requested", endpoints.Namespace(), endpoints.Name());
+            _logger.LogInformation("Endpoints {@namespace}/{@endpoints} reconcile requested", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
 
             return null;
@@ -82,17 +82,20 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         public async Task StatusModifiedAsync(V1Endpoints endpoints)
         {
-            _logger.LogDebug("Endpoints {@namespace}/{@endpoints} status changed", endpoints.Namespace(), endpoints.Name());
+            _logger.LogInformation("Endpoints {@namespace}/{@endpoints} status changed", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
         private async Task SyncEndpointsIfRequiredAsync(V1Endpoints endpoints)
         {
+            _logger.LogTrace("Syncing endpoints if required {namespace}/{name}", endpoints.Namespace(), endpoints.Name());
             if (await _cache.IsServiceMonitoredAsync(endpoints.Namespace(), endpoints.Name()))
             {
+                _logger.LogTrace("Endpoint service is monitored, checking");
                 var oldResourceVersion = await _cache.GetLastResourceVersionAsync(endpoints.Metadata.Uid);
                 if (oldResourceVersion != endpoints.Metadata.ResourceVersion)
                 {
+                    _logger.LogTrace("Endpoint resource version is not the same, checking endpoint count.");
                     var oldCount = await _cache.GetEndpointsCountAsync(endpoints.Namespace(), endpoints.Name());
                     var doSync = false;
 
@@ -103,21 +106,21 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     // we only need to resync if pod count is 0 and now we have pods, or if pod count was not 0 and now we don't
                     if (oldCount != 0 && subsetCount == 0)
                     {
-                        _logger.LogDebug("We had endpoints and now we do not, resyncing");
+                        _logger.LogInformation("We had endpoints and now we do not, resyncing");
                         doSync = true;
                     }
                     else if (oldCount == 0 && subsetCount != 0)
                     {
-                        _logger.LogDebug("We did not have endpoints and now we do, resyncing");
+                        _logger.LogInformation("We did not have endpoints and now we do, resyncing");
                         doSync = true;
                     }
                     else if (oldCount == 0 && subsetCount == 0)
                     {
-                        _logger.LogDebug("We did not have endpoints and we still do not, not resyncing");
+                        _logger.LogInformation("We did not have endpoints and we still do not, not resyncing");
                     }
                     else
                     {
-                        _logger.LogDebug("We had endpoints and we still do, not resyncing");
+                        _logger.LogInformation("We had endpoints and we still do, not resyncing");
                     }
 
                     if (doSync)

@@ -173,7 +173,11 @@ spinner_setup() {
 
         spinner_wait "Setting up" "
         . ./test.sh
-        setup 1> $STDOUTFILE 2> $STDERRFILE"
+        echo 'Setup started at $(date)' > $STDOUTFILE
+        setup 1>> $STDOUTFILE 2> $STDERRFILE
+        RET=\$?
+        echo 'Setup completed at $(date)' >> $STDOUTFILE
+        exit \$RET"
 
         return $?
 }
@@ -184,7 +188,11 @@ spinner_assert() {
 
         spinner_wait "Asserting" "
         . ./test.sh
-        assert 1> $STDOUTFILE 2> $STDERRFILE"
+        echo 'Assert started at $(date)' > $STDOUTFILE
+        assert 1>> $STDOUTFILE 2> $STDERRFILE
+        RET=\$?
+        echo 'Assert completed at $(date)' >> $STDOUTFILE
+        exit \$RET"
 
         return $?
 }
@@ -195,7 +203,11 @@ spinner_cleanup() {
 
         spinner_wait "Cleaning up" "
         . ./test.sh
-        cleanup 1> $STDOUTFILE 2> $STDERRFILE"
+        echo 'Cleanup started at $(date)' > $STDOUTFILE
+        cleanup 1>> $STDOUTFILE 2> $STDERRFILE
+        RET=\$?
+        echo 'Cleanup completed at $(date)' >> $STDOUTFILE
+        exit \$RET"
 
         return $?
 }
