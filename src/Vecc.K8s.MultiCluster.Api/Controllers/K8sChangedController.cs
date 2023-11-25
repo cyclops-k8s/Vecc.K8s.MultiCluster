@@ -96,21 +96,34 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     var oldCount = await _cache.GetEndpointsCountAsync(endpoints.Namespace(), endpoints.Name());
                     var doSync = false;
 
-                    // check to see if we had endpoints, and now we don't
-                    if (oldCount != 0 && endpoints.Subsets.Count == 0)
+                    // if there are no subsets then subsets is null, check that here
+                    var subsetCount = endpoints.Subsets?.Count ?? 0;
+
+                    // resource version will change as pods start/stop/delete/create, check to see if we need to resync
+                    // we only need to resync if pod count is 0 and now we have pods, or if pod count was not 0 and now we don't
+                    if (oldCount != 0 && subsetCount == 0)
                     {
+                        _logger.LogDebug("We had endpoints and now we do not, resyncing");
                         doSync = true;
                     }
-                    // check to see if we didn't have endpoints and now we do
-                    else if (oldCount == 0 && endpoints.Subsets.Count != 0)
+                    else if (oldCount == 0 && subsetCount != 0)
                     {
+                        _logger.LogDebug("We did not have endpoints and now we do, resyncing");
                         doSync = true;
+                    }
+                    else if (oldCount == 0 && subsetCount == 0)
+                    {
+                        _logger.LogDebug("We did not have endpoints and we still do not, not resyncing");
+                    }
+                    else
+                    {
+                        _logger.LogDebug("We had endpoints and we still do, not resyncing");
                     }
 
                     if (doSync)
                     {
                         _logger.LogInformation("Endpoints {@namespace}/{@endpoints} {@oldCount}->{@newCount} change requires resync",
-                            endpoints.Namespace(), endpoints.Name(), oldCount, endpoints.Subsets.Count);
+                            endpoints.Namespace(), endpoints.Name(), oldCount, subsetCount);
 
                         await _synchronizer.SynchronizeLocalEndpointsAsync(endpoints);
                     }

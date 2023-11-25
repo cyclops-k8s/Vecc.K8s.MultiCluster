@@ -3,32 +3,6 @@
 . ../../functions.sh
 
 setup() {
-    return 0
-}
-
-assert() {
-    RESULT=0
-    
-    COUNT=0
-    COUNTOF1=0
-    COUNTOF2=0
-    
-    echo "Restarting redis in context 1"
-    use_context 1
-    set_namespace mcingress-operator
-    echo "Restarting redis"
-    kubectl rollout restart redis
-    sleep 15
-    wait_for_resource pod condition=ready app=redis
-
-    echo "Restarting redis in context 2"
-    use_context 2
-    set_namespace mcingress-operator
-    echo "Restarting redis"
-    kubectl rollout restart redis
-    sleep 15
-    wait_for_resource pod condition=ready app=redis
-
     # set -e
     use_context 1
     echo "Applying manifests"
@@ -41,7 +15,7 @@ assert() {
     use_context 2
     echo "Applying manifests"
     kubectl apply -f test2.yaml
-    RETCODE=$?
+    (( RETCODE+=$? )) || true
     echo "Setting namespace"
     set_namespace redis-restart
     (( RETCODE+=$? )) || true
@@ -62,11 +36,27 @@ assert() {
     wait_for_ingress nginx
     (( RETCODE+=$? )) || true
 
-    if [ $RETCODE != 0 ]
-    then
-        echo "Unable to establish test case"
-        return $RETCODE
-    fi
+    echo "Giving it a second for the api's to register everything"
+    sleep 10
+    return $RETCODE
+}
+
+assert() {
+    RESULT=0
+    
+    COUNT=0
+    COUNTOF1=0
+    COUNTOF2=0
+    
+    echo "Stopping redis in context 1"
+    use_context 1
+    kubectl scale deployment redis --replicas 0 -n mcingress-operator
+
+    echo "Stopping redis in context 2"
+    use_context 2
+    kubectl scale deployment redis --replicas 0 -n mcingress-operator
+
+    sleep 15
 
     while (( COUNT < 100 ))
     do
@@ -74,6 +64,7 @@ assert() {
         (( COUNT++ ))
 
         ACTUAL=$(get_ip 1 redis-restart.test)
+        echo "Got $ACTUAL"
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
@@ -89,6 +80,7 @@ assert() {
         fi
 
         ACTUAL=$(get_ip 2 redis-restart.test)
+        echo "Got $ACTUAL"
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 2 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
@@ -122,12 +114,22 @@ assert() {
 
 cleanup() {
     use_context 1
-    kubectl delete namespace redis-restart
+    set_namespace mcingress-operator
+    kubectl scale deployment redis --replicas 1 -n mcingress-operator
     RESULT=$?
-
-    use_context 2
+    wait_for_resource pod condition=ready app=redis
+    (( RESULT+=$? )) || true
     kubectl delete namespace redis-restart
     (( RESULT+=$? )) || true
 
-    return $?
+    use_context 2
+    set_namespace mcingress-operator
+    kubectl scale deployment redis --replicas 1 -n mcingress-operator
+    (( RESULT+=$? )) || true
+    wait_for_resource pod condition=ready app=redis
+    (( RESULT+=$? )) || true
+    kubectl delete namespace redis-restart
+    (( RESULT+=$? )) || true
+
+    return $RESULT
 }

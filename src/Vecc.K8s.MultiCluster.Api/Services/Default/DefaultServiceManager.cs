@@ -23,16 +23,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             if (string.IsNullOrWhiteSpace(ns))
             {
-                _logger.LogInformation("{@namespace} is empty. We will get service objects from all namespaces", ns);
-                return await GetServicesAsync();
+                _logger.LogDebug("{@namespace} is empty. We will get service objects from all namespaces", ns);
+                return await GetAllServicesAsync();
             }
 
             var result = new List<V1Service>();
 
-            
-            _logger.LogInformation("Getting services in {@namespace}", ns);
+
+            _logger.LogDebug("Getting services in {@namespace}", ns);
             var k8sServices = await _kubernetesClient.List<V1Service>(ns);
-            _logger.LogInformation("Done getting services in {@namespace}", ns);
+            _logger.LogDebug("Done getting services in {@namespace}", ns);
 
             result.AddRange(k8sServices);
 
@@ -42,10 +42,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public Task<List<V1Service>> GetLoadBalancerEndpointsAsync(IList<V1Service> services)
         {
-            _logger.LogInformation("Finding load balancer services");
+            _logger.LogDebug("Finding load balancer services");
             var result = services.Where(service => service.Spec.Type == "LoadBalancer").ToList();
 
-            _logger.LogInformation("Done");
+            _logger.LogDebug("Done");
             return Task.FromResult(result);
         }
 
@@ -59,13 +59,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             foreach (var serviceEntry in namespacedServices)
             {
-                _logger.LogInformation("Checking load balancer service namespace: {@namespace}", serviceEntry.Key);
+                _logger.LogDebug("Checking load balancer service namespace: {@namespace}", serviceEntry.Key);
 
                 if (!namespacedEndpoints.TryGetValue(serviceEntry.Key, out var endpoints))
                 {
                     foreach (var service in serviceEntry.Value)
                     {
-                        _logger.LogInformation("Missing endpoints in namespace {@namespace} for {@service}", serviceEntry.Key, service.Name());
+                        _logger.LogDebug("Missing endpoints in namespace {@namespace} for {@service}", serviceEntry.Key, service.Name());
                     }
                 }
                 else
@@ -76,7 +76,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         var hostname = service.GetAnnotation("multicluster.veccsolutions.com/hostname");
                         if (string.IsNullOrWhiteSpace(hostname))
                         {
-                            _logger.LogInformation("Service {@service} does not have the multicluster.veccsolutions.com/hostname annotation, skipping.", service.Name());
+                            _logger.LogDebug("Service {@service} does not have the multicluster.veccsolutions.com/hostname annotation, skipping.", service.Name());
                             continue;
                         }
 
@@ -104,7 +104,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             result.Add(hostname, new List<V1Service>());
                         }
 
-                        _logger.LogInformation("Adding service to {@hostname}", hostname);
+                        _logger.LogDebug("Adding service to {@hostname}", hostname);
                         result[hostname].Add(service);
                     }
                 }
@@ -114,19 +114,25 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
+        public Task<List<V1Service>> GetServicesAsync(IList<V1Namespace> namespaces) => GetAllServicesAsync(namespaces);
+
+        [Trace]
+        public Task<List<V1Endpoints>> GetEndpointsAsync(IList<V1Namespace> namespaces) => GetAllEndpointsAsync(namespaces);
+
+        [Trace]
         public async Task<List<V1Endpoints>> GetEndpointsAsync(string? ns)
         {
             if (string.IsNullOrWhiteSpace(ns))
             {
-                _logger.LogInformation("{@namespace} is empty, getting endpoint objects from all namespaces", ns);
-                return await GetEndpointsAsync();
+                _logger.LogDebug("{@namespace} is empty, getting endpoint objects from all namespaces", ns);
+                return await GetAllEndpointsAsync();
             }
 
             var result = new List<V1Endpoints>();
 
-            _logger.LogInformation("Getting endpoints in {@namespace}", ns);
+            _logger.LogDebug("Getting endpoints in {@namespace}", ns);
             var endpoints = await _kubernetesClient.List<V1Endpoints>(ns);
-            _logger.LogInformation("Done getting endpoints in {@namespace}", ns);
+            _logger.LogDebug("Done getting endpoints in {@namespace}", ns);
 
             result.AddRange(endpoints);
 
@@ -134,9 +140,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        private async Task<List<V1Service>> GetServicesAsync()
+        private async Task<List<V1Service>> GetAllServicesAsync(IList<V1Namespace>? namespaces = null)
         {
-            var namespaces = await _namespaceManager.GetNamsepacesAsync();
+            if (namespaces == null)
+            {
+                namespaces = await _namespaceManager.GetNamsepacesAsync();
+            }
+
             var result = new List<V1Service>();
 
             var tasks = namespaces.Select(space => Task.Run(async () =>
@@ -156,9 +166,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        private async Task<List<V1Endpoints>> GetEndpointsAsync()
+        private async Task<List<V1Endpoints>> GetAllEndpointsAsync(IList<V1Namespace>? namespaces = null)
         {
-            var namespaces = await _namespaceManager.GetNamsepacesAsync();
+            if (namespaces == null)
+            {
+                namespaces = await _namespaceManager.GetNamsepacesAsync();
+            }
+
             var result = new List<V1Endpoints>();
 
             var tasks = namespaces.Select(space => Task.Run(async () =>
@@ -176,6 +190,5 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             return result;
         }
-
     }
 }

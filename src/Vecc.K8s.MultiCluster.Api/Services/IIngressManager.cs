@@ -4,8 +4,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services
 {
     public interface IIngressManager
     {
-        Task<IList<V1Ingress>> GetAllIngressesAsync(string? ns);
+        Task<IList<V1Ingress>> GetIngressesAsync(string? ns);
+        Task<IList<V1Ingress>> GetIngressesAsync(IList<V1Namespace> namespaces);
+
         Task<IList<V1Ingress>> GetValidIngressesAsync(string? ns);
+        Task<IList<V1Ingress>> GetValidIngressesAsync(IList<V1Namespace> namespaces);
+        
         Task<Dictionary<string, IList<V1Ingress>>> GetAvailableHostnamesAsync(
             IList<V1Ingress> ingresses,
             IList<V1Service> services,

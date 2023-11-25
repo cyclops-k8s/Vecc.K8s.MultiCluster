@@ -79,16 +79,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
+        public async Task<DateTime?> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
         {
             var key = GetClusterHeartbeatKey(clusterIdentifier);
-
+            _logger.LogTrace("Checking heartbeat key {key}", key);
             if (await _database.KeyExistsAsync(key))
             {
+                _logger.LogTrace("Heartbeat key exists");
                 var heartbeat = await _database.StringGetAsync(key);
 
                 if (DateTime.TryParseExact(heartbeat, "O", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
                 {
+                    _logger.LogTrace("Heartbeat found, {result}", result);
                     return result;
                 }
                 else
@@ -99,7 +101,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
             }
 
-            return default;
+            _logger.LogTrace("Key {key} didn't exist", key);
+            return null;
         }
 
         [Trace]
@@ -116,7 +119,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
             else
             {
+                _logger.LogDebug("Getting all hostnames for cluster {clusterIdentifier}", clusterIdentifier);
                 keys = await GetKeysAsync(GetClusterHostnameIpsKey(clusterIdentifier, "*"));
+                _logger.LogTrace("Got keys {@keys}", (object)keys);
                 keys = keys.Select(key => key.Split('.', 4)[3]).ToArray();
             }
 
@@ -196,8 +201,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname)
         {
-            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname); ;
+            if (string.IsNullOrWhiteSpace(clusterIdentifier) || clusterIdentifier.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(clusterIdentifier), "Cluster identifier is invalid.");
+            }
 
+            if (string.IsNullOrWhiteSpace(hostname) || hostname.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(hostname), "Cluster identifier is invalid.");
+            }
+
+            var key = GetClusterHostnameIpsKey(clusterIdentifier, hostname);
+
+            _logger.LogTrace("Deleting cluster hostname key: {key}", key);
             await _database.KeyDeleteAsync(key);
             await RefreshHostnameIps(hostname);
 
@@ -207,6 +223,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task<bool> RemoveClusterIdentifierAsync(string clusterIdentifier)
         {
+            if (string.IsNullOrWhiteSpace(clusterIdentifier) || clusterIdentifier.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(clusterIdentifier), "Cluster identifier is invalid.");
+            }
+
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
             if (!clusterIdentifiers.Contains(clusterIdentifier))
             {
@@ -221,13 +242,31 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
         {
+            if (string.IsNullOrWhiteSpace(clusterIdentifier) || clusterIdentifier.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(clusterIdentifier), "Cluster identifier is invalid.");
+            }
+
             var key = GetClusterHeartbeatKey(clusterIdentifier);
+            _logger.LogTrace("Setting heartbeat key {key} to {heartbeat}", key, heartbeat);
+
             await _database.StringSetAsync(key, heartbeat.ToString("O"));
+            _logger.LogTrace("Done");
         }
 
         [Trace]
         public async Task SetEndpointsCountAsync(string ns, string name, int count)
         {
+            if (string.IsNullOrWhiteSpace(ns) || ns.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(ns), "Namespace is invalid.");
+            }
+
+            if (string.IsNullOrWhiteSpace(name) || name.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(name), "Endpoint name is invalid.");
+            }
+
             var key = GetEndpointKey(ns, name);
             await _database.StringSetAsync(key, count.ToString());
         }
@@ -235,6 +274,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs)
         {
+            if (string.IsNullOrWhiteSpace(clusterIdentifier) || clusterIdentifier.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(clusterIdentifier), "Cluster identifier is invalid.");
+            }
+
+            if (string.IsNullOrWhiteSpace(hostname) || hostname.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(hostname), "Hostname is invalid.");
+            }
+
             var result = false;
             await VerifyClusterExistsAsync(clusterIdentifier);
 
@@ -245,8 +294,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 Hostname = hostname,
                 ClusterIdentifier = clusterIdentifier
             };
-            var oldConfig = await _database.StringGetAsync(key);
-            if (oldConfig.HasValue && hostIPs.Length == 0)
+
+            if (hostIPs.Length == 0)
             {
                 _logger.LogInformation("No IPS for {hostname}/{cluster}", hostname, clusterIdentifier);
                 result = true;
@@ -254,9 +303,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
             else
             {
+                var oldConfig = await _database.StringGetAsync(key);
                 var ips = JsonSerializer.Serialize(hostModel);
                 if (!oldConfig.HasValue || oldConfig != ips)
                 {
+                    _logger.LogTrace("Setting {key} to {@ips}", key, ips);
+
                     result = true;
                     var status = await _database.StringSetAsync(key, ips);
 
@@ -265,11 +317,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         _logger.LogError("Unable to update ips for host {@hostname}", hostname);
                     }
                 }
+                else
+                {
+                    _logger.LogTrace("{oldConfig} has a value and it matches {ips}", (string?)oldConfig, ips);
+                }
             }
 
             //Only refresh the hostname ip's if they actually changed
             if (result)
             {
+                _logger.LogTrace("Refreshing hostname ips");
                 await RefreshHostnameIps(hostname);
             }
             return result;
@@ -278,6 +335,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task SetResourceVersionAsync(string uniqueIdentifier, string version)
         {
+            if (string.IsNullOrWhiteSpace(uniqueIdentifier) || uniqueIdentifier.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(uniqueIdentifier), "Unique identifier is invalid.");
+            }
+
+            if (string.IsNullOrWhiteSpace(version) || version.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(version), "Version is invalid.");
+            }
+
             var key = GetResourceVersionKey(uniqueIdentifier);
             await _database.StringSetAsync(key, version);
         }
@@ -302,10 +369,29 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                     else
                     {
+                        _logger.LogTrace("Deleting key: {key}", key);
+                        await _database.KeyDeleteAsync(key);
+                    }
+                }
+                else if (slugs.Length == 4 && slugs[2] == "hosts")
+                {
+                    var serialized = await _database.StringGetAsync(key);
+                    var valid = false;
+
+                    if (!string.IsNullOrWhiteSpace(serialized))
+                    {
+                        var host = JsonSerializer.Deserialize<HostModel>((string)serialized!);
+                        valid = host?.HostIPs?.Any() ?? false;
+                    }
+
+                    if (!valid)
+                    {
+                        _logger.LogInformation("Found stale cluster host entry {key} {data}", key, (string?)serialized);
                         await _database.KeyDeleteAsync(key);
                     }
                 }
             }
+
 
             var hostKey = GetHostnameIpsKey("*");
             var hostKeys = await GetKeysAsync(hostKey);
@@ -350,6 +436,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task TrackServiceAsync(string ns, string name)
         {
+            if (string.IsNullOrWhiteSpace(ns) || ns.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(ns), "Namespace is invalid.");
+            }
+
+            if (string.IsNullOrWhiteSpace(name) || name.Contains('*'))
+            {
+                throw new ArgumentOutOfRangeException(nameof(name), "Service name is invalid.");
+            }
+
             var key = GetTrackedServiceKey(ns, name);
             await _database.StringSetAsync(key, "yes");
         }
@@ -361,6 +457,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var keys = await GetKeysAsync(trackedServiceKey);
             foreach (var key in keys)
             {
+                _logger.LogTrace("Deleting tracked service key: {key}", key);
                 await _database.KeyDeleteAsync(key);
             }
         }
@@ -397,21 +494,27 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var ipList = new List<HostIP>();
 
             var clusterIdentifiers = await GetClusterIdentifiersAsync();
+            _logger.LogTrace("Got cluster identifiers {@clusterIdentifiers}", (object)clusterIdentifiers);
+
             foreach (var identifier in clusterIdentifiers)
             {
-                key = GetClusterHostnameIpsKey(identifier, hostname); ;
+                key = GetClusterHostnameIpsKey(identifier, hostname);
                 var clusterIps = await _database.StringGetAsync(key);
                 var value = (string?)clusterIps;
+                _logger.LogTrace("Cluster IPs {@clusterIps}", value);
+
                 if (value != null)
                 {
+                    _logger.LogTrace("ClusterIps != null");
                     var hostModel = JsonSerializer.Deserialize<HostModel>(value);
-                    if (hostModel == null)
+                    if (hostModel?.HostIPs == null)
                     {
                         _logger.LogError("Serialized host data does not fit the hostmodel type. {@serialized}", value);
                     }
                     else
                     {
                         ipList.AddRange(hostModel.HostIPs);
+                        _logger.LogTrace("Added hostips with a resulting list of {@iplist}", ipList);
                     }
                 }
                 else
@@ -421,19 +524,26 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             key = GetHostnameIpsKey(hostname);
-            var host = new HostModel
+            if (ipList.Any())
             {
-                Hostname = hostname,
-                HostIPs = ipList.ToArray()
-            };
+                var host = new HostModel
+                {
+                    Hostname = hostname,
+                    HostIPs = ipList.ToArray()
+                };
 
-            var ips = JsonSerializer.Serialize(host);
-            var status = await _database.StringSetAsync(key, ips);
-            if (!status)
-            {
-                _logger.LogError("Unable to update ips for host {@hostname}", hostname);
+                var ips = JsonSerializer.Serialize(host);
+                var status = await _database.StringSetAsync(key, ips);
+                if (!status)
+                {
+                    _logger.LogError("Unable to update ips for host {@hostname}", hostname);
+                }
             }
-
+            else
+            {
+                _logger.LogInformation("Last IP address removed from the hostname, deleting the key");
+                await _database.KeyDeleteAsync(key);
+            }
             await _queue.PublishHostChangedAsync(hostname);
         }
 

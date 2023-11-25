@@ -10,6 +10,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
     {
         private readonly ILogger<DefaultHostnameSynchronizer> _logger;
         private readonly IIngressManager _ingressManager;
+        private readonly INamespaceManager _namespaceManager;
         private readonly IServiceManager _serviceManager;
         private readonly ICache _cache;
         private readonly IOptions<MultiClusterOptions> _multiClusterOptions;
@@ -20,11 +21,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly CancellationToken _shutdownCancellationToken;
         private readonly ManualResetEvent _shutdownEvent;
-        private readonly ManualResetEvent _synchronizeLocalClusterHolder;
+        private readonly AutoResetEvent _synchronizeLocalClusterHolder;
 
         public DefaultHostnameSynchronizer(
             ILogger<DefaultHostnameSynchronizer> logger,
             IIngressManager ingressManager,
+            INamespaceManager namespaceManager,
             IServiceManager serviceManager,
             ICache cache,
             IOptions<MultiClusterOptions> multiClusterOptions,
@@ -35,6 +37,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             _logger = logger;
             _ingressManager = ingressManager;
+            _namespaceManager = namespaceManager;
             _serviceManager = serviceManager;
             _cache = cache;
             _multiClusterOptions = multiClusterOptions;
@@ -46,15 +49,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _shutdownEvent = new ManualResetEvent(false);
             _shutdownCancellationToken = _shutdownCancellationTokenSource.Token;
-            _synchronizeLocalClusterHolder = new ManualResetEvent(true);
+            _synchronizeLocalClusterHolder = new AutoResetEvent(true);
         }
 
         [Trace]
         public async Task SynchronizeLocalClusterAsync()
         {
-            _synchronizeLocalClusterHolder.WaitOne(5000);
+            _synchronizeLocalClusterHolder.WaitOne();
             try
             {
+                _logger.LogInformation("Synchronizing local cluster");
                 var ipAddresses = new Dictionary<string, List<HostIP>>();
                 var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
                 var validServiceHosts = new Dictionary<string, V1Service>();
@@ -65,27 +69,39 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 IList<V1Endpoints>? endpoints = null;
                 IList<V1Service>? loadBalancerServices = null;
                 Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
+                var myHosts = Array.Empty<string>();
+                _logger.LogTrace("Initiating namespace getter");
+                var namespaces = await _namespaceManager.GetNamsepacesAsync();
+                _logger.LogTrace("Got the namespaces");
 
+                _logger.LogTrace("Getting ingresses, services and endpoints");
                 await Task.WhenAll(
-                    Task.Run(async () => ingresses = await _ingressManager.GetAllIngressesAsync(null)),
-                    Task.Run(async () => services = await _serviceManager.GetServicesAsync(null)),
-                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(null)));
+                    Task.Run(async () => myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier)),
+                    Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync(namespaces)),
+                    Task.Run(async () => services = await _serviceManager.GetServicesAsync(namespaces)),
+                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(namespaces)));
+                _logger.LogTrace("Got ingresses, services and endpoints");
 
-                _logger.LogInformation("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints}", ingresses!.Count, services!.Count, endpoints!.Count);
+                _logger.LogDebug("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints}", ingresses!.Count, services!.Count, endpoints!.Count);
+                _logger.LogTrace("Current hostnames: {@hostnames}", (object)myHosts);
 
+                _logger.LogTrace("Getting available hostnames and load balancer services");
                 await Task.WhenAll(
                     Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpoints)),
                     Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerEndpointsAsync(services)));
+                _logger.LogTrace("Done getting available hostnames and load balancer services");
 
+                _logger.LogTrace("Getting available hostnames from services");
                 var serviceHosts = await _serviceManager.GetAvailableHostnamesAsync(loadBalancerServices!, endpoints);
+                _logger.LogTrace("Done getting available hostnames from services");
 
-                _logger.LogInformation("Counts validingresses-{@ingress} load balancer services-{@lbservices} valid services-{@services}",
+                _logger.LogDebug("Counts validingresses-{@ingress} load balancer services-{@lbservices} valid services-{@services}",
                     ingressHosts!.Count, loadBalancerServices!.Count, serviceHosts.Count);
 
-                _logger.LogInformation("Setting service tracking");
-                _logger.LogInformation("Purging current tracked list");
+                _logger.LogDebug("Setting service tracking");
+                _logger.LogDebug("Purging current tracked list");
                 await _cache.UntrackAllServicesAsync();
-                _logger.LogInformation("Tracking ingress related services");
+                _logger.LogDebug("Tracking ingress related services");
                 foreach (var ingress in ingresses)
                 {
                     await _cache.SetResourceVersionAsync(ingress.Metadata.Uid, ingress.Metadata.ResourceVersion);
@@ -95,53 +111,93 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         await _cache.TrackServiceAsync(ingress.Metadata.NamespaceProperty, name);
                     }
                 }
-                _logger.LogInformation("Tracking load balancer services");
+                _logger.LogDebug("Tracking load balancer services");
                 foreach (var service in loadBalancerServices)
                 {
                     await _cache.TrackServiceAsync(service.Metadata.NamespaceProperty, service.Metadata.Name);
                 }
-                _logger.LogInformation("Tracking services");
+                _logger.LogDebug("Tracking services");
                 foreach (var service in services)
                 {
                     await _cache.SetResourceVersionAsync(service.Metadata.Uid, service.Metadata.ResourceVersion);
                 }
-                _logger.LogInformation("Tracking endpoints");
+                _logger.LogDebug("Tracking endpoints");
                 foreach (var endpoint in endpoints)
                 {
                     await _cache.SetResourceVersionAsync(endpoint.Metadata.Uid, endpoint.Metadata.ResourceVersion);
                 }
-                _logger.LogInformation("Done tracking services");
+                _logger.LogDebug("Done tracking services");
 
                 foreach (var service in serviceHosts)
                 {
+                    _logger.LogDebug("Checking service: {hostname}", service.Key);
+                    var valid = true;
                     if (service.Value.Count > 1)
                     {
-                        _logger.LogWarning("Too many service hosts for {@hostname}", service.Key);
+                        _logger.LogWarning("Too many service hosts for {hostname} {@services}",
+                            service.Key,
+                            service.Value.Select(s => new
+                            {
+                                Namespace = s.Namespace(),
+                                Name = s.Name()
+                            }));
                         invalidHostnames.Add(service.Key);
-                        continue;
-                    }
-                    if (ingressHosts.ContainsKey(service.Key))
-                    {
-                        _logger.LogWarning("Host {@hostname} exists in both an ingress and a service", service.Key);
-                        invalidHostnames.Add(service.Key);
-                        continue;
+                        valid = false;
                     }
 
-                    validServiceHosts[service.Key] = service.Value[0];
+                    if (ingressHosts.ContainsKey(service.Key))
+                    {
+                        _logger.LogWarning("Host {hostname} exists in both an ingress and a service {@services} {@ingresses}",
+                            service.Key,
+                            service.Value.Select(s => new
+                            {
+                                Namespace = s.Namespace(),
+                                Name = s.Name()
+                            }),
+                            ingressHosts[service.Key].Select(i => new
+                            {
+                                Namespace = i.Namespace(),
+                                Name = i.Name()
+                            }));
+                        invalidHostnames.Add(service.Key);
+                        valid = false;
+                    }
+
+                    if (valid)
+                    {
+                        validServiceHosts[service.Key] = service.Value[0];
+                    }
                 }
 
                 foreach (var ingressHost in ingressHosts)
                 {
+                    using var ingressHostScope = _logger.BeginScope("{hostname}", ingressHost.Key);
+
+                    _logger.LogDebug("Checking ingress for validity");
                     if (serviceHosts.ContainsKey(ingressHost.Key))
                     {
-                        _logger.LogWarning("Host {@hostname} exists in both an ingress and a service", ingressHost.Key);
+                        _logger.LogWarning("Host {hostname} exists in both an ingress and a service {@services} {@ingresses}",
+                            ingressHost.Key,
+                            serviceHosts[ingressHost.Key].Select(s => new
+                            {
+                                Namespace = s.Namespace(),
+                                Name = s.Name()
+                            }),
+                            ingressHost.Value.Select(i => new
+                            {
+                                Namespace = i.Namespace(),
+                                Name = i.Name()
+                            }));
                         continue;
                     }
 
                     foreach (var ingress in ingressHost.Value)
                     {
+                        using var ingressScope = _logger.BeginScope("{namespace}/{ingress}", ingress.Namespace(), ingress.Name());
+                        _logger.LogDebug("Checking ingress exposed ip's to make sure its hostname ip is same if found in multiple ingresses");
                         if (validIngressHosts.TryGetValue(ingressHost.Key, out var foundIngress))
                         {
+                            _logger.LogTrace("Ingress in valid hosts");
                             // check to make sure the endpoint IP's match, otherwise, mark as invalid and ignore this hostname.
                             var balancerEndpoints = foundIngress.Status.LoadBalancer.Ingress;
                             var ingressEndpoints = ingress.Status.LoadBalancer.Ingress;
@@ -149,7 +205,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             same = same && balancerEndpoints.All(blb => ingressEndpoints.Any(lb => lb.Ip == blb.Ip));
                             if (!same)
                             {
-                                _logger.LogWarning("Exposed IP mismatch for {@hostname}", ingressHost.Key);
+                                _logger.LogWarning("Exposed IP mismatch with hostname in multiple ingresses for {@hostname}", ingressHost.Key);
                                 invalidHostnames.Add(ingressHost.Key);
                             }
                             continue;
@@ -161,12 +217,15 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 foreach (var service in validServiceHosts)
                 {
+                    _logger.LogInformation("Found valid service: {namespace}/{name}", service.Value.Namespace(), service.Value.Name());
                     var addresses = service.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
                     var priorityAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
                     if (string.IsNullOrWhiteSpace(priorityAnnotation))
                     {
+                        _logger.LogTrace("No priority annotation, defaulting to 0");
                         priorityAnnotation = "0";
                     }
+
                     if (!int.TryParse(priorityAnnotation, out var priority) &&
                         priorityAnnotation != null)
                     {
@@ -176,15 +235,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     var weightAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
                     if (string.IsNullOrWhiteSpace(weightAnnotation))
                     {
+                        _logger.LogTrace("No weight annotation, defaulting to 50");
                         weightAnnotation = "50";
                     }
                     if (!int.TryParse(weightAnnotation, out var weight))
                     {
                         weight = 50;
-                        if (weightAnnotation != null)
-                        {
-                            _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
-                        }
+                        _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
                     }
 
                     if (!ipAddresses.ContainsKey(service.Key))
@@ -203,7 +260,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 foreach (var ingress in validIngressHosts)
                 {
+                    using var scope = _logger.BeginScope("{namespace}/{name}", ingress.Value.Namespace(), ingress.Value.Name());
+                    _logger.LogDebug("Found valid ingress");
                     var addresses = ingress.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
+                    _logger.LogTrace("Addresses: {@addresses}", (object)addresses);
+
                     var priorityAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
                     if (!int.TryParse(priorityAnnotation, out var priority) &&
                         priorityAnnotation != null)
@@ -223,8 +284,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                     if (!ipAddresses.ContainsKey(ingress.Key))
                     {
+                        _logger.LogTrace("Setting empty list for {key}", ingress.Key);
                         ipAddresses[ingress.Key] = new List<HostIP>();
                     }
+
+                    _logger.LogTrace("Adding {@addresses} to the list of ips for {key}", addresses, ingress.Key);
 
                     ipAddresses[ingress.Key].AddRange(addresses.Select(address => new HostIP
                     {
@@ -233,28 +297,32 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         Weight = weight,
                         ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
                     }));
+
+                    _logger.LogTrace("Resulting addresses {@ipaddresses}", ipAddresses[ingress.Key]);
                 }
 
                 foreach (var host in ipAddresses)
                 {
+                    _logger.LogTrace("Host information: {@host}", host);
                     if (await _cache.SetHostIPsAsync(host.Key, localClusterIdentifier, host.Value.ToArray()))
                     {
-                        _logger.LogInformation("Host information changed for {@hostname}", host.Key);
+                        _logger.LogInformation("Host information changed for {host}", host.Key);
                         await SendHostUpdatesAsync(host.Key, host.Value.ToArray());
                     }
                 }
 
-                var myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier);
                 foreach (var host in myHosts)
                 {
+                    _logger.LogDebug("Checking if {host} is removed.", host);
                     if (!ipAddresses.ContainsKey(host))
                     {
-                        if (await _cache.SetHostIPsAsync(host, localClusterIdentifier, Array.Empty<HostIP>()))
-                        {
-                            await SendHostUpdatesAsync(host, Array.Empty<HostIP>());
-                        }
+                        _logger.LogInformation("Removing old host {host}", host);
+                        await _cache.SetHostIPsAsync(host, localClusterIdentifier, Array.Empty<HostIP>());
+                        await SendHostUpdatesAsync(host, Array.Empty<HostIP>());
                     }
                 }
+
+                _logger.LogInformation("Done synchronizing local cluster");
             }
             finally
             {
@@ -312,7 +380,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 try
                 {
                     var client = _clientFactory.CreateClient(peer.Url);
-                    var hosts = await client.GetFromJsonAsync<Models.Api.HostModel[]?>("host");
+                    var hosts = await client.GetFromJsonAsync<Models.Api.HostModel[]?>("Host");
                     if (hosts == null)
                     {
                         _logger.LogError("Unable to get hosts from remote peer, result is null.");
@@ -322,15 +390,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     var currentHosts = await _cache.GetHostsAsync(peer.Identifier);
                     if (currentHosts != null)
                     {
+                        _logger.LogTrace("We got hosts from the cache for {clusteridentifier}", peer.Identifier);
                         var hostsToRemove = currentHosts.Where(h => !hosts.Any(x => x.Hostname == h.Hostname));
+                        _logger.LogTrace("Removing clustered hosts {@hosts}", hostsToRemove);
                         foreach (var host in hostsToRemove)
                         {
+                            _logger.LogInformation("Removing stale cluster host {clusteridentifier}/{hostname}", peer.Identifier, host.Hostname);
                             await _cache.RemoveClusterHostnameAsync(peer.Identifier, host.Hostname);
                         }
                     }
 
                     foreach (var host in hosts)
                     {
+                        _logger.LogTrace("Setting host {host}", host.Hostname);
                         var hostIps = host.HostIPs.Select(i => new HostIP
                         {
                             IPAddress = i.IPAddress,
@@ -380,6 +452,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     {
                         var clusterHeartbeat = await _cache.GetClusterHeartbeatTimeAsync(clusterIdentifier);
 
+                        if (clusterHeartbeat == null)
+                        {
+                            _logger.LogWarning("Cluster heartbeat not set for identifier {clusterIdentifier}", clusterIdentifier);
+                            continue;
+                        }
+
                         if (clusterHeartbeat < timeout)
                         {
                             var clusterHosts = await _cache.GetHostnamesAsync(clusterIdentifier);
@@ -387,7 +465,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                             foreach (var hostname in clusterHosts)
                             {
-                                _logger.LogWarning("Removing cluster hostname {@hostname} due to expired timeout", hostname);
+                                _logger.LogWarning("Removing cluster hostname {@clusterIdentifier}/{@hostname} due to expired timeout", clusterIdentifier, hostname);
                                 await _cache.RemoveClusterHostnameAsync(clusterIdentifier, hostname);
                             }
                         }
@@ -400,15 +478,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 try
                 {
-                    _logger.LogInformation("Making sure stale records are not in the cache");
+                    _logger.LogTrace("Making sure stale records are not in the cache");
                     await _cache.SynchronizeCachesAsync();
                 }
                 catch (Exception exception)
                 {
                     _logger.LogError(exception, "Error cleaning stale records in the cache");
                 }
-
-                _logger.LogInformation("Removing stale IP addresses");
             }
 
             _shutdownEvent.Set();

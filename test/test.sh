@@ -9,11 +9,21 @@ export TEMPDIRECTORY
 
 # shellcheck disable=SC2317
 function terminate() {
+    set +e
     pkill kubectl-relay
 
     mkdir -p "$TEMPDIRECTORY/results"
     mv "$TEMPDIRECTORY"/* "$TEMPDIRECTORY"/results 2> /dev/null
     RESULTS="results-$(date +%Y%m%d-%H%M%S).tgz"
+    mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test1"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-dns-server.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-api-server.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-orchestrator.log"
+    mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test2"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-dns-server.log"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-api-server.log"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-orchestrator.log"
+
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
     tar -czf "$DIRECTORY/$RESULTS" --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
     rm -rf "$DIRECTORY/results"
@@ -74,6 +84,10 @@ export KUBECONFIG="$KUBECONFIG_FILE"
 
 
 ./create-docker-registry.sh
+
+docker image pull redis:7
+docker image tag redis:7 localhost:${reg_port}/redis:7
+docker image push localhost:${reg_port}/redis:7
 
 docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:latest ../
 docker image push localhost:${reg_port}/multicluster:latest

@@ -9,7 +9,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         Task<Models.Core.Host?> GetHostInformationAsync(string hostname);
         Task<string[]> GetHostnamesAsync(string clusterIdentifier);
         Task<Models.Core.Host[]?> GetHostsAsync(string clusterIdentifier);
-        Task<DateTime> GetClusterHeartbeatTimeAsync(string clusterIdentifier);
+        Task<DateTime?> GetClusterHeartbeatTimeAsync(string clusterIdentifier);
         Task<bool> IsServiceMonitoredAsync(string ns, string name);
         Task RemoveClusterHostnameAsync(string clusterIdentifier, string hostname);
         Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat);

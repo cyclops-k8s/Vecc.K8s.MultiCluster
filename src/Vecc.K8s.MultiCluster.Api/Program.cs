@@ -16,7 +16,9 @@ using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddJsonFile("appsettings.logging.json");
+builder.Configuration.AddJsonFile("appsettings.logging.json")
+                      .AddEnvironmentVariables()
+                      .AddCommandLine(args);
 
 builder.Host.UseSerilog((context, configuration) =>
 {
