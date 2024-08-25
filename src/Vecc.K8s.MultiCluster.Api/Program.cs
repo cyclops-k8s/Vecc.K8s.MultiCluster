@@ -1,16 +1,15 @@
 using Destructurama;
+using k8s.Models;
 using KubeOps.KubernetesClient;
 using KubeOps.Operator;
-using KubeOps.Operator.Leadership;
+using KubeOps.Transpiler;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using Serilog.Data;
-using StackExchange.Redis;
-using StackExchange.Redis.Maintenance;
-using System.Net;
-using System.Net.NetworkInformation;
+using System.Reflection;
 using Vecc.Dns.Server;
+using Vecc.K8s.MultiCluster.Api.Controllers;
+using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
@@ -50,31 +49,40 @@ if (args.Any(arg => arg == "--orchestrator"))
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
         operatorSettings.EnableLeaderElection = true;
-        operatorSettings.OnlyWatchEventsWhenLeader = true;
-    });
-    builder.Services.AddSingleton<DefaultLeaderStateChangeObserver>();
+    })
+        .AddController<K8sChangedController, V1Ingress>()
+        .AddController<K8sChangedController, V1Service>()
+        .AddController<K8sChangedController, V1Endpoints>();
 }
-else
+else if (args.Any(arg => arg == "--dns-server"))
 {
+    builder.Services.AddKubernetesOperator()
+        .AddController<K8sHostnameCacheController, V1HostnameCache>();
+
     builder.Services.AddSingleton<IKubernetesClient, KubernetesClient>();
 }
+
 builder.Services.AddSingleton<LeaderStatus>();
-builder.Services.AddSingleton<DefaultLeaderStateChangeObserver>();
+builder.Services.AddSingleton<LeaderStateChanged>();
 builder.Services.AddSingleton<DefaultDnsResolver>();
 builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
 builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
 builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
 builder.Services.AddSingleton<IHostnameSynchronizer, DefaultHostnameSynchronizer>();
-builder.Services.AddSingleton<ICache, RedisCache>();
+//builder.Services.AddSingleton<ICache, RedisCache>();
 builder.Services.AddSingleton<IDnsHost, DefaultDnsHost>();
 builder.Services.AddSingleton<IDateTimeProvider, DefaultDateTimeProvider>();
 builder.Services.AddSingleton<IRandom, DefaultRandom>();
 builder.Services.AddSingleton<IDnsServer, DnsServer>();
 builder.Services.AddSingleton<Vecc.Dns.ILogger, DefaultDnsLogging>();
 builder.Services.AddSingleton<IDnsResolver>(sp => sp.GetRequiredService<DefaultDnsResolver>());
+builder.Services.AddSingleton<LeaderStateChanged>();
+builder.Services.AddSingleton<KubernetesQueue>();
+builder.Services.AddSingleton<IQueue>((s) => s.GetRequiredService<KubernetesQueue>());
+
 builder.Services.AddScoped<ApiAuthenticationHandler>();
 builder.Services.AddSingleton<ApiAuthenticationHasher>();
-builder.Services.AddSingleton<IQueue, RedisQueue>();
+//builder.Services.AddSingleton<IQueue, RedisQueue>();
 builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
 builder.Services.AddHttpClient();
 builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
@@ -86,6 +94,7 @@ builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme
 
 var options = new MultiClusterOptions();
 var dnsOptions = new DnsServerOptions();
+
 builder.Configuration.Bind(options);
 builder.Configuration.GetSection("DnsServer").Bind(dnsOptions);
 
@@ -97,68 +106,12 @@ foreach (var peer in options.Peers)
         client.DefaultRequestHeaders.Add("X-Api-Key", peer.Key);
     });
 }
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-{
-    var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("Redis");
-    ConfigurationOptions configurationOptions;
-    var logger = sp.GetRequiredService<ILogger<Program>>();
-    if (connectionString == null && builder.Environment.IsDevelopment())
-    {
-        var endpoints = new EndPointCollection { new IPEndPoint(IPAddress.Loopback, 6379) };
-        configurationOptions = new ConfigurationOptions { EndPoints = endpoints };
-    }
-    else
-    {
-        if (connectionString == null)
-        {
-            logger.LogError("Redis connection string must be set.");
-            throw new Exception("Redis connection string must be set.");
-        }
-
-        configurationOptions = ConfigurationOptions.Parse(connectionString);
-        configurationOptions.ReconnectRetryPolicy = new LinearRetry(int.MaxValue);
-    }
-
-    var multiplexer = ConnectionMultiplexer.Connect(configurationOptions);
-
-    multiplexer.ConfigurationChanged += (sender, e) => { Multiplexer_ConfigurationChanged(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.ConfigurationChangedBroadcast += (sender, e) => { Multiplexer_ConfigurationChangedBroadcast(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.ConnectionFailed += (sender, e) => { Multiplexer_ConnectionFailed(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.ConnectionRestored += (sender, e) => { Multiplexer_ConnectionRestored(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.ErrorMessage += (sender, e) => { Multiplexer_ErrorMessage(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.HashSlotMoved += (sender, e) => { Multiplexer_HashSlotMoved(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.InternalError += (sender, e) => { Multiplexer_InternalError(logger, sender as IConnectionMultiplexer, sp, e); };
-    multiplexer.ServerMaintenanceEvent += (sender, e) => { Multiplexer_ServerMaintenanceEvent(logger, sender as IConnectionMultiplexer, sp, e); };
-
-    return multiplexer;
-});
-
-builder.Services.AddSingleton<IDatabase>(sp =>
-{
-    var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
-    var database = multiplexer.GetDatabase();
-    return database;
-});
-
-builder.Services.AddSingleton<ISubscriber>(sp =>
-{
-    var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
-    var subscriber = multiplexer.GetSubscriber();
-    return subscriber;
-});
 
 var app = builder.Build();
 
 app.UseWhen(context => !context.Request.Path.StartsWithSegments("/Healthz"), appBuilder => appBuilder.UseSerilogRequestLogging());
 app.UseSwagger();
 app.UseSwaggerUI();
-
-var controllerPaths = new string[] { "/Heartbeat", "/Authentication", "/Host", "/Healthz", "/swagger" };
-if (args.Contains("--orchestrator"))
-{
-    app.UseWhen(context => !controllerPaths.Any(path => context.Request.Path.StartsWithSegments(path)), appBuilder => appBuilder.UseKubernetesOperator());
-    app.UseKubernetesOperator();
-}
 
 app.UseRouting();
 app.UseAuthentication();
@@ -177,14 +130,15 @@ var processTasks = new List<Task>();
 if (args.Contains("--orchestrator"))
 {
     logger.LogInformation("Running the orchestrator");
-    var defaultLeaderStateChangeObserver = app.Services.GetRequiredService<DefaultLeaderStateChangeObserver>();
-    app.Services.GetRequiredService<ILeaderElection>().LeadershipChange.Subscribe(defaultLeaderStateChangeObserver);
+
     var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
 
     processTasks.Add(Task.Run(() =>
     {
         logger.LogInformation("Starting the operator");
-        return app.RunOperatorAsync(args.Where(a => a != "--dns-server" && a != "--front-end" && a != "--orchestrator").ToArray())
+        var leaderStateChanged = app.Services.GetRequiredService<LeaderStateChanged>();
+
+        return app.RunAsync()
             .ContinueWith(_ => logger.LogInformation("Operator stopped"));
     }));
 
@@ -237,57 +191,3 @@ logger.LogInformation("Waiting on process tasks");
 await Task.WhenAll(processTasks);
 
 logger.LogInformation("Terminated");
-
-void Multiplexer_ServerMaintenanceEvent(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, ServerMaintenanceEvent e)
-{
-    logger.LogError("Redis server maintenance: {@event}", e);
-}
-
-void Multiplexer_InternalError(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, InternalErrorEventArgs e)
-{
-    logger.LogError("Redis internal error: {@event}", e);
-}
-
-void Multiplexer_HashSlotMoved(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, HashSlotMovedEventArgs e)
-{
-    logger.LogDebug("Redis hash slot moved: {@event}", e);
-}
-
-void Multiplexer_ErrorMessage(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, RedisErrorEventArgs e)
-{
-    logger.LogError("Redis error: {@event}", e);
-}
-
-void Multiplexer_ConfigurationChangedBroadcast(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, EndPointEventArgs e)
-{
-    logger.LogInformation("Redis configuration changed broadcast: {@event}", e);
-}
-
-void Multiplexer_ConfigurationChanged(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, EndPointEventArgs e)
-{
-    logger.LogInformation("Redis configuration changed: {@event}", e);
-}
-
-async void Multiplexer_ConnectionRestored(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, ConnectionFailedEventArgs e)
-{
-    logger.LogInformation("Redis connection restored: {@event}", e);
-    if (e.ConnectionType == ConnectionType.Subscription)
-    {
-        try
-        {
-            logger.LogInformation("Redis connection is a subscription, it is restored, initiating dns resolver resync");
-            var dnsResolver = serviceProvider.GetRequiredService<DefaultDnsResolver>();
-            await dnsResolver.InitializeAsync();
-            logger.LogInformation("Resync complete");
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(exception, "Error handling connection restored event.");
-        }
-    }
-}
-
-void Multiplexer_ConnectionFailed(ILogger<Program> logger, IConnectionMultiplexer? sender, IServiceProvider serviceProvider, ConnectionFailedEventArgs e)
-{
-    logger.LogError("Redis connection failed: {@event}", e);
-}

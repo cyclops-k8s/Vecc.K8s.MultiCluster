@@ -19,6 +19,7 @@ spec:
         app: operator
         component: dns-server
     spec:
+      serviceAccountName: dns-server
       containers:
       - name: dns-server
         args:
@@ -59,6 +60,15 @@ spec:
           requests:
             cpu: 100m
             memory: 64Mi
+        volumeMounts:
+        - mountPath: /var/run/secrets/tokens
+          name: token
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -81,6 +91,7 @@ spec:
         app: operator
         component: orchestrator
     spec:
+      serviceAccountName: orchestrator
       containers:
       - name: orchestrator
         args:
@@ -115,6 +126,15 @@ spec:
           requests:
             cpu: 100m
             memory: 64Mi
+        volumeMounts:
+        - mountPath: /var/run/secrets/tokens
+          name: token
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -137,6 +157,7 @@ spec:
         app: operator
         component: api-server
     spec:
+      serviceAccountName: api-server
       containers:
       - name: api-server
         args:
@@ -173,4 +194,13 @@ spec:
           requests:
             cpu: 100m
             memory: 64Mi
+        volumeMounts:
+        - mountPath: /var/run/secrets/tokens
+          name: token
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
       terminationGracePeriodSeconds: 10

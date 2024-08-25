@@ -21,7 +21,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var result = new List<V1Namespace>();
 
             _logger.LogDebug("Getting all namespaces");
-            var namespaces = await _kubernetesClient.List<V1Namespace>();
+            var namespaces = await _kubernetesClient.ListAsync<V1Namespace>();
             _logger.LogDebug("Done getting all namespaces");
 
             result.AddRange(namespaces);

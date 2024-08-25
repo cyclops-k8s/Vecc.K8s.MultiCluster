@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Vecc.K8s.MultiCluster.Api.Models.Api;
-using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers

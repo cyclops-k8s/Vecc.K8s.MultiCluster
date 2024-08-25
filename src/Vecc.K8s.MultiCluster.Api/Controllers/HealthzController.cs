@@ -32,7 +32,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             V1Namespace? ns = null;
             try
             {
-                ns = await _kubernetesClient.Get<V1Namespace>(await _kubernetesClient.GetCurrentNamespace("kube-system"));
+                ns = await _kubernetesClient.GetAsync<V1Namespace>(await _kubernetesClient.GetCurrentNamespaceAsync());
                 if (ns == null)
                 {
                     return StatusCode(500, "Namespace result was null");
@@ -54,7 +54,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             {
                 try
                 {
-                    var namespaces = await _kubernetesClient.List<V1Namespace>(null);
+                    var namespaces = await _kubernetesClient.ListAsync<V1Namespace>(null);
                     if (namespaces == null)
                     {
                         return StatusCode(500, "Namespace result was null");

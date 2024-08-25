@@ -31,7 +31,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
 
             _logger.LogDebug("Getting services in {@namespace}", ns);
-            var k8sServices = await _kubernetesClient.List<V1Service>(ns);
+            var k8sServices = await _kubernetesClient.ListAsync<V1Service>(ns);
             _logger.LogDebug("Done getting services in {@namespace}", ns);
 
             result.AddRange(k8sServices);
@@ -131,7 +131,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var result = new List<V1Endpoints>();
 
             _logger.LogDebug("Getting endpoints in {@namespace}", ns);
-            var endpoints = await _kubernetesClient.List<V1Endpoints>(ns);
+            var endpoints = await _kubernetesClient.ListAsync<V1Endpoints>(ns);
             _logger.LogDebug("Done getting endpoints in {@namespace}", ns);
 
             result.AddRange(endpoints);

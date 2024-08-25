@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: operator-role
+  name: multicluster-orchestrator
 rules:
 - apiGroups:
   - networking.k8s.io
@@ -16,17 +16,9 @@ rules:
   - watch
 - apiGroups:
   - ""
-  - apps
-  resources:
-  - namespaces
-  - deployments
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - ""
   resources:
   - events
+  - namespaces
   verbs:
   - create
   - get
@@ -38,6 +30,13 @@ rules:
   - leases
   verbs:
   - '*'
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -55,14 +54,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ""
-  resources:
-  - namespaces/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - apps
   resources:
   - deployments/status
@@ -70,3 +61,18 @@ rules:
   - get
   - patch
   - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: orchestrator
+rules:
+- apiGroups:
+  - multicluster.veccsolutions.io
+  verbs:
+  - '*'
+  resources:
+  - ClusterCache
+  - HostnameCache
+  - ResourceCache
+  - ServiceCache

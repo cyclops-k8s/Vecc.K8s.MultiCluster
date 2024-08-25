@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dns-server
+rules:
+- apiGroups:
+  - multicluster.veccsolutions.io
+  verbs:
+  - get
+  - list
+  - watch
+  resources:
+  - HostnameCache

@@ -32,7 +32,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             _logger.LogDebug("Getting ingress objects in {@namespace}", ns);
-            var ingresses = await _kubernetesClient.List<V1Ingress>(ns);
+            var ingresses = await _kubernetesClient.ListAsync<V1Ingress>(ns);
             _logger.LogDebug("Done getting ingress objects in {@namespace}", ns);
 
             result.AddRange(ingresses);
@@ -55,7 +55,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             _logger.LogDebug("Getting ingress objects in {@namespace}", ns);
-            var k8sIngresses = await _kubernetesClient.List<V1Ingress>(ns);
+            var k8sIngresses = await _kubernetesClient.ListAsync<V1Ingress>(ns);
 
             _logger.LogDebug("Getting service objects in {@namespace}", ns);
             var k8sServices = await _serviceManager.GetServicesAsync(ns);

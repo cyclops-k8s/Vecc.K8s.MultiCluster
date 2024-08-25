@@ -1,10 +1,7 @@
-﻿using IdentityModel;
-using k8s.LeaderElection;
-using k8s.Models;
-using KubeOps.KubernetesClient;
-using KubeOps.Operator.Controller;
-using KubeOps.Operator.Controller.Results;
-using KubeOps.Operator.Rbac;
+﻿using k8s.Models;
+using KubeOps.Abstractions.Controller;
+using KubeOps.Abstractions.Rbac;
+using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers
@@ -13,7 +10,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Endpoints), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Namespace), Verbs = RbacVerb.List | RbacVerb.Get)]
-    public class K8sChangedController : IResourceController<V1Ingress>, IResourceController<V1Service>, IResourceController<V1Endpoints>
+    public class K8sChangedController : IEntityController<V1Ingress>, IEntityController<V1Service>, IEntityController<V1Endpoints>
     {
         private readonly ILogger<K8sChangedController> _logger;
         private readonly ICache _cache;
@@ -26,63 +23,39 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             _synchronizer = synchronizer;
         }
 
-        public async Task DeletedAsync(V1Ingress ingress)
+        public async Task DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Ingress {@namespace}/{@ingress} deleted", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
         }
 
-        public async Task<ResourceControllerResult?> ReconcileAsync(V1Ingress ingress)
+        public async Task ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Ingress {@namespace}/{@ingress} reconcile requested", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
-
-            return null;
         }
 
-        public async Task StatusModifiedAsync(V1Ingress ingress)
-        {
-            _logger.LogInformation("Ingress {@namespace}/{@ingress} state changed", ingress.Namespace(), ingress.Name());
-            await SyncIngressIfRequired(ingress);
-        }
-
-        public async Task DeletedAsync(V1Service service)
+        public async Task DeletedAsync(V1Service service, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Service {@namespace}/{@service} deleted", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
         }
 
-        public async Task<ResourceControllerResult?> ReconcileAsync(V1Service service)
+        public async Task ReconcileAsync(V1Service service, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Service {@namespace}/{@service} reconcile requested", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
-
-            return null;
         }
 
-        public async Task StatusModifiedAsync(V1Service service)
-        {
-            _logger.LogInformation("Service {@namespace}/{@service} status modified", service.Namespace(), service.Name());
-            await SyncServiceIfRequiredAsync(service);
-        }
-
-        public async Task DeletedAsync(V1Endpoints endpoints)
+        public async Task DeletedAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Endpoints {@namespace}/{@endpoints} deleted", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
-        public async Task<ResourceControllerResult?> ReconcileAsync(V1Endpoints endpoints)
+        public async Task ReconcileAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Endpoints {@namespace}/{@endpoints} reconcile requested", endpoints.Namespace(), endpoints.Name());
-            await SyncEndpointsIfRequiredAsync(endpoints);
-
-            return null;
-        }
-
-        public async Task StatusModifiedAsync(V1Endpoints endpoints)
-        {
-            _logger.LogInformation("Endpoints {@namespace}/{@endpoints} status changed", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
@@ -156,5 +129,6 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                 }
             }
         }
+
     }
 }
