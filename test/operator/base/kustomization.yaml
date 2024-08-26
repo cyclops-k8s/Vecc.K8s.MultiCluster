@@ -1,12 +1,13 @@
 resources:
 - namespace.yaml
+- ingress-namespace.yaml
 - api-server-role-bindings.yaml
 - api-server-role.yaml
 - configmap.yaml
+- crds.yaml
 - deployment.yaml
 - dns-server-role-bindings.yaml
 - dns-server-role.yaml
-- ingress-namespace.yaml
 - ingress-deployment.yaml
 - ingress-role-binding.yaml
 - ingress-role.yaml

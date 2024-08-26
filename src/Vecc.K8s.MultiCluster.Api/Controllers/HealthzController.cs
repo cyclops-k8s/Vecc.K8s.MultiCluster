@@ -52,19 +52,17 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         {
             if (_lastUp < _dateTimeProvider.UtcNow.AddSeconds(-10))
             {
+                V1Namespace? ns = null;
                 try
                 {
-                    var namespaces = await _kubernetesClient.ListAsync<V1Namespace>(null);
-                    if (namespaces == null)
+                    ns = await _kubernetesClient.GetAsync<V1Namespace>(await _kubernetesClient.GetCurrentNamespaceAsync());
+                    if (ns == null)
                     {
                         return StatusCode(500, "Namespace result was null");
                     }
-                    if (namespaces.Count == 0)
-                    {
-                        return StatusCode(500, "Namespace list was empty");
-                    }
+
                     _lastUp = _dateTimeProvider.UtcNow;
-                    return Ok("Kubernetes API returned namespaces");
+                    return Ok(new { Status = "Kubernetes API returned something", Namespace = ns });
                 }
                 catch (Exception ex)
                 {

@@ -1,12 +1,20 @@
 ﻿using k8s.Models;
 using KubeOps.Abstractions.Entities;
+using KubeOps.Abstractions.Entities.Attributes;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
 namespace Vecc.K8s.MultiCluster.Api.Models.K8sEntities
 {
+    [EntityScope(EntityScope.Namespaced)]
     [KubernetesEntity(Group ="multicluster.veccsolutions.io", ApiVersion = "v1alpha", Kind = "HostnameCache")]
     public class V1HostnameCache : CustomKubernetesEntity
     {
+        public V1HostnameCache()
+        {
+            Kind = "HostnameCache";
+            ApiVersion = "multicluster.veccsolutions.io/v1alpha";
+        }
+
         public HostIPCache[] Addresses { get; set; } = Array.Empty<HostIPCache>();
 
         public class HostIPCache

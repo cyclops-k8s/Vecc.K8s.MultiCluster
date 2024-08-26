@@ -2,12 +2,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: dns-server
-  namespace: mcingress-orchestrator
+  namespace: mcingress-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: dns-server
 subjects:
-- apiGroup: rbac.authorization.k8s.io
-  kind: ServiceAccount
+- kind: ServiceAccount
   name: dns-server

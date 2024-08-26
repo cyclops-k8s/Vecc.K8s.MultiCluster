@@ -43,9 +43,7 @@ echo_color "${G}Applying operators"
 kustomize build operator/$1 | kubectl apply -f -
 
 set_namespace mcingress-operator
-wait_for_resource pod condition=ready app=redis 90
-echo_color "${G}Waiting for 5 seconds"
-sleep 5
+
 wait_for_resource pod condition=ready component=dns-server 90
 wait_for_resource pod condition=ready component=orchestrator 90
 wait_for_resource pod condition=ready component=api-server 90

@@ -150,25 +150,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         public async Task SetClusterHeartbeatAsync(string clusterIdentifier, DateTime heartbeat)
         {
-            var cluster = await _kubernetesClient.GetAsync<V1ClusterCache>(clusterIdentifier, _options.Value.Namespace);
-
-            if (cluster == null)
-            {
-                cluster = new V1ClusterCache();
-
-                var metadata = cluster.EnsureMetadata();
-
-                metadata.SetNamespace(_options.Value.Namespace);
-                metadata.Name = clusterIdentifier;
-                cluster.LastHeartbeat = heartbeat.ToString("O");
-
-                await _kubernetesClient.CreateAsync(cluster);
-            }
-            else
-            {
-                cluster.LastHeartbeat = heartbeat.ToString("O");
-                await _kubernetesClient.UpdateAsync(cluster);
-            }
+            _logger.LogDebug("Updating cluster heartbeat");
+            var cluster = await GetOrCreateClusterCache(clusterIdentifier);
+            cluster.LastHeartbeat = heartbeat.ToString("O");
+            await _kubernetesClient.SaveAsync(cluster);
         }
 
         public async Task SetEndpointsCountAsync(string ns, string name, int count)
@@ -177,7 +162,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             service.EndpointCount = count; ;
 
-            await _kubernetesClient.UpdateAsync(service);
+            await _kubernetesClient.SaveAsync(service);
         }
 
         public async Task<bool> SetHostIPsAsync(string hostname, string clusterIdentifier, HostIP[] hostIPs)
@@ -185,6 +170,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             using var _ = _logger.BeginScope("{@clusterIdentifier} {@hostname}", clusterIdentifier, hostname);
 
             var result = false;
+            _logger.LogDebug("Setting host IPs to {@hostIPs}", hostIPs);
 
             _logger.LogDebug("Updating cluster cache");
             var clusterCache = await GetOrCreateClusterCache(clusterIdentifier);
@@ -194,7 +180,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 Hostname = hostname
             }).ToArray();
             clusterCache.Hostnames = clusterHosts;
-            await _kubernetesClient.UpdateAsync(clusterCache);
+            _logger.LogDebug("Setting {clusterIdentifier} to {@clusterCache}", clusterIdentifier, clusterCache);
+            await _kubernetesClient.SaveAsync(clusterCache);
 
             _logger.LogDebug("Updating hostname cache");
             var hostnameCache = await GetOrCreateHostnameCache(hostname);
@@ -223,7 +210,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 var clusters = hostnameCache.Addresses.Where(x => x.ClusterIdentifier != clusterIdentifier).Union(hostIPs.Select(V1HostnameCache.HostIPCache.FromCore)).ToArray();
                 hostnameCache.Addresses = clusters;
                 _logger.LogDebug("Sending to kubernetes");
-                await _kubernetesClient.UpdateAsync(hostnameCache);
+                await _kubernetesClient.SaveAsync(hostnameCache);
             }
 
             _logger.LogDebug("Done");
@@ -277,9 +264,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         _logger.LogInformation("Host cache length mismatch {@hostname}", hostcache.Name());
                         update = true;
                     }
-                    else if (hostcache.Addresses.Any(src => !host.Any(dst => dst.Equals(src))))
+                    else if (hostcache.Addresses.Any(src => !host.Any(dst => dst.Equals(src.ToCore()))))
                     {
-                        _logger.LogInformation("Host cache value mismatch {@hostname}", hostcache.Name());
+                        _logger.LogInformation("Host cache value mismatch {@hostname}, got {@actual} expected {@expected}", hostcache.Name(), hostcache.Addresses, host);
+                        update = true;
                     }
                     else
                     {
@@ -292,7 +280,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         hostcache.Addresses = host.Select(V1HostnameCache.HostIPCache.FromCore).ToArray();
 
                         _logger.LogInformation("Sending to kubernetes");
-                        await _kubernetesClient.UpdateAsync(hostcache);
+                        await _kubernetesClient.SaveAsync(hostcache);
                     }
                 }
             }

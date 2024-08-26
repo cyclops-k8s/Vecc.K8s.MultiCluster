@@ -66,13 +66,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: orchestrator
+  namespace: mcingress-operator
 rules:
 - apiGroups:
   - multicluster.veccsolutions.io
   verbs:
   - '*'
   resources:
-  - ClusterCache
-  - HostnameCache
-  - ResourceCache
-  - ServiceCache
+  - clustercaches
+  - hostnamecaches
+  - resourcecaches
+  - servicecaches

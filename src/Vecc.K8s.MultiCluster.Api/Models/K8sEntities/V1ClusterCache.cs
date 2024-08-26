@@ -1,13 +1,21 @@
 ﻿using k8s.Models;
 using KubeOps.Abstractions.Entities;
+using KubeOps.Abstractions.Entities.Attributes;
 using System.Security;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
 namespace Vecc.K8s.MultiCluster.Api.Models.K8sEntities
 {
+    [EntityScope(EntityScope.Namespaced)]
     [KubernetesEntity(Group ="multicluster.veccsolutions.io", ApiVersion = "v1alpha", Kind = "ClusterCache")]
     public class V1ClusterCache : CustomKubernetesEntity
     {
+        public V1ClusterCache()
+        {
+            Kind = "ClusterCache";
+            ApiVersion = "multicluster.veccsolutions.io/v1alpha";
+        }
+
         public string LastHeartbeat { get; set; } = string.Empty;
         public HostCache[] Hostnames { get; set; } = Array.Empty<HostCache>();
         public EndpointCacheCount[] ServiceEndpointCounts { get; set; } = Array.Empty<EndpointCacheCount>();

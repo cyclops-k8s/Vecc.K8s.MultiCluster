@@ -1,4 +1,6 @@
-﻿namespace Vecc.K8s.MultiCluster.Api.Services
+﻿using KubeOps.KubernetesClient;
+
+namespace Vecc.K8s.MultiCluster.Api.Services
 {
     public class MultiClusterOptions
     {
@@ -13,6 +15,6 @@
         public int DefaultRecordTTL { get; set; } = 5;
         public string DNSServerResponsibleEmailAddress { get; set; } = "null.vecck8smulticlusteringress.com";
         public string DNSHostname { get; set; } = "dns.vecck8smulticlusteringress.com";
-        public string Namespace { get; set; } = Environment.GetEnvironmentVariable("POD_NAMESPACE");
+        public string Namespace { get; set; } = Environment.GetEnvironmentVariable("POD_NAMESPACE") ?? new KubernetesClient().GetCurrentNamespace();
     }
 }

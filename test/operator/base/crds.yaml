@@ -1,0 +1,183 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clustercaches.multicluster.veccsolutions.io
+spec:
+  group: multicluster.veccsolutions.io
+  names:
+    kind: ClusterCache
+    listKind: ClusterCacheList
+    plural: clustercaches
+    singular: clustercache
+  scope: Namespaced
+  versions:
+  - name: v1alpha
+    schema:
+      openAPIV3Schema:
+        properties:
+          lastHeartbeat:
+            nullable: false
+            type: string
+          hostnames:
+            items:
+              properties:
+                hostname:
+                  nullable: false
+                  type: string
+                hostIPs:
+                  items:
+                    properties:
+                      ipAddress:
+                        nullable: false
+                        type: string
+                      priority:
+                        format: int32
+                        nullable: false
+                        type: integer
+                      weight:
+                        format: int32
+                        nullable: false
+                        type: integer
+                      clusterIdentifier:
+                        nullable: false
+                        type: string
+                    type: object
+                  nullable: false
+                  type: array
+              type: object
+            nullable: false
+            type: array
+          serviceEndpointCounts:
+            items:
+              properties:
+                namespace:
+                  nullable: false
+                  type: string
+                service:
+                  nullable: false
+                  type: string
+                count:
+                  format: int32
+                  nullable: false
+                  type: integer
+              type: object
+            nullable: false
+            type: array
+        type: object
+    served: true
+    storage: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: hostnamecaches.multicluster.veccsolutions.io
+spec:
+  group: multicluster.veccsolutions.io
+  names:
+    kind: HostnameCache
+    listKind: HostnameCacheList
+    plural: hostnamecaches
+    singular: hostnamecache
+  scope: Namespaced
+  versions:
+  - name: v1alpha
+    schema:
+      openAPIV3Schema:
+        properties:
+          addresses:
+            items:
+              properties:
+                ipAddress:
+                  nullable: false
+                  type: string
+                priority:
+                  format: int32
+                  nullable: false
+                  type: integer
+                weight:
+                  format: int32
+                  nullable: false
+                  type: integer
+                clusterIdentifier:
+                  nullable: false
+                  type: string
+              type: object
+            nullable: false
+            type: array
+        type: object
+    served: true
+    storage: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: resourcecaches.multicluster.veccsolutions.io
+spec:
+  group: multicluster.veccsolutions.io
+  names:
+    kind: ResourceCache
+    listKind: ResourceCacheList
+    plural: resourcecaches
+    singular: resourcecache
+  scope: Namespaced
+  versions:
+  - name: v1alpha
+    schema:
+      openAPIV3Schema:
+        properties:
+          currentResourceVersion:
+            nullable: false
+            type: string
+        type: object
+    served: true
+    storage: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: servicecaches.multicluster.veccsolutions.io
+spec:
+  group: multicluster.veccsolutions.io
+  names:
+    kind: ServiceCache
+    listKind: ServiceCacheList
+    plural: servicecaches
+    singular: servicecache
+  scope: Namespaced
+  versions:
+  - name: v1alpha
+    schema:
+      openAPIV3Schema:
+        properties:
+          service:
+            nullable: false
+            properties:
+              apiVersion:
+                nullable: false
+                type: string
+              fieldPath:
+                nullable: false
+                type: string
+              kind:
+                nullable: false
+                type: string
+              name:
+                nullable: false
+                type: string
+              namespace:
+                nullable: false
+                type: string
+              resourceVersion:
+                nullable: false
+                type: string
+              uid:
+                nullable: false
+                type: string
+            type: object
+          endpointCount:
+            format: int32
+            nullable: false
+            type: integer
+        type: object
+    served: true
+    storage: true

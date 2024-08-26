@@ -2,12 +2,17 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: dns-server
+  namespace: mcingress-operator
 rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
 - apiGroups:
   - multicluster.veccsolutions.io
   verbs:
-  - get
-  - list
-  - watch
+  - '*'
   resources:
-  - HostnameCache
+  - hostnamecaches

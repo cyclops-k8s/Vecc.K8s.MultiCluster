@@ -42,7 +42,7 @@ echo_color "${G}Downloading kind"
 mkdir -p .test
 if [ ! -f ./.test/kind ]
 then
-    curl -Lo ./.test/kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+    curl -Lo ./.test/kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
     chmod +x ./.test/kind
 fi
 
@@ -84,10 +84,6 @@ export KUBECONFIG="$KUBECONFIG_FILE"
 
 
 ./create-docker-registry.sh
-
-docker image pull redis:7
-docker image tag redis:7 localhost:${reg_port}/redis:7
-docker image push localhost:${reg_port}/redis:7
 
 docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:latest ../
 docker image push localhost:${reg_port}/multicluster:latest

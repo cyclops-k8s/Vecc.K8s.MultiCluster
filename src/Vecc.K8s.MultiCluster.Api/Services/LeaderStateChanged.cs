@@ -98,7 +98,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services
                     _leaderStateChangeEvent.Reset();
 
                     _logger.LogInformation("Leadership changed event triggered");
-                    await _hostnameSynchronizer.SynchronizeLocalClusterAsync();
                 }
             });
 

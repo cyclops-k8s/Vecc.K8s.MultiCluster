@@ -19,6 +19,16 @@ builder.Configuration.AddJsonFile("appsettings.logging.json")
                       .AddEnvironmentVariables()
                       .AddCommandLine(args);
 
+builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
+builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
+
+builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
+var options = new MultiClusterOptions();
+var dnsOptions = new DnsServerOptions();
+
+builder.Configuration.Bind(options);
+builder.Configuration.GetSection("DnsServer").Bind(dnsOptions);
+
 builder.Host.UseSerilog((context, configuration) =>
 {
     configuration.ReadFrom.Configuration(context.Configuration)
@@ -56,11 +66,16 @@ if (args.Any(arg => arg == "--orchestrator"))
 }
 else if (args.Any(arg => arg == "--dns-server"))
 {
-    builder.Services.AddKubernetesOperator()
+    builder.Services.AddKubernetesOperator((c) => { c.Namespace = options.Namespace; })
         .AddController<K8sHostnameCacheController, V1HostnameCache>();
 
     builder.Services.AddSingleton<IKubernetesClient, KubernetesClient>();
 }
+else if (args.Any(arg => arg == "--front-end"))
+{
+    builder.Services.AddSingleton<IKubernetesClient, KubernetesClient>();
+}
+
 
 builder.Services.AddSingleton<LeaderStatus>();
 builder.Services.AddSingleton<LeaderStateChanged>();
@@ -69,7 +84,7 @@ builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
 builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
 builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
 builder.Services.AddSingleton<IHostnameSynchronizer, DefaultHostnameSynchronizer>();
-//builder.Services.AddSingleton<ICache, RedisCache>();
+builder.Services.AddSingleton<ICache, KubernetesApiCache>();
 builder.Services.AddSingleton<IDnsHost, DefaultDnsHost>();
 builder.Services.AddSingleton<IDateTimeProvider, DefaultDateTimeProvider>();
 builder.Services.AddSingleton<IRandom, DefaultRandom>();
@@ -82,21 +97,11 @@ builder.Services.AddSingleton<IQueue>((s) => s.GetRequiredService<KubernetesQueu
 
 builder.Services.AddScoped<ApiAuthenticationHandler>();
 builder.Services.AddSingleton<ApiAuthenticationHasher>();
-//builder.Services.AddSingleton<IQueue, RedisQueue>();
 builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
 builder.Services.AddHttpClient();
-builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
-builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
-builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
 
 builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme)
     .AddScheme<ApiAuthenticationHandlerOptions, ApiAuthenticationHandler>(ApiAuthenticationHandlerOptions.DefaultScheme, null);
-
-var options = new MultiClusterOptions();
-var dnsOptions = new DnsServerOptions();
-
-builder.Configuration.Bind(options);
-builder.Configuration.GetSection("DnsServer").Bind(dnsOptions);
 
 foreach (var peer in options.Peers)
 {
@@ -159,7 +164,7 @@ if (args.Contains("--orchestrator"))
 }
 
 //starts the dns server to respond to dns queries for the respective hosts
-if (args.Contains("--dns-server"))
+else if (args.Contains("--dns-server"))
 {
     logger.LogInformation("Running the dns server");
     var dnsHost = app.Services.GetRequiredService<IDnsHost>();
@@ -174,10 +179,16 @@ if (args.Contains("--dns-server"))
         logger.LogInformation("Starting the dns server");
         return dnsHost.StartAsync().ContinueWith(_ => logger.LogInformation("DNS Server stopped"));
     }));
+
+    processTasks.Add(Task.Run(() =>
+    {
+        logger.LogInformation("Running API Server for health checks");
+        return app.RunAsync().ContinueWith(_ => logger.LogInformation("API Server stopped"));
+    }));
 }
 
 //starts the api server
-if (!args.Contains("--orchestrator") && (args.Contains("--dns-server") || args.Contains("--front-end")))
+else if (args.Contains("--front-end"))
 {
     processTasks.Add(Task.Run(() =>
     {
