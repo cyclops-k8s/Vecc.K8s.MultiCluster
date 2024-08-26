@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using NewRelic.Api.Agent;
 using System.Net;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
+using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
@@ -18,6 +19,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly LeaderStatus _leaderStatus;
         private readonly IDateTimeProvider _dateTimeProvider;
         private readonly IHttpClientFactory _clientFactory;
+        private readonly IGslbManager _gslbManager;
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly CancellationToken _shutdownCancellationToken;
         private readonly ManualResetEvent _shutdownEvent;
@@ -33,7 +35,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             IHostApplicationLifetime lifetime,
             LeaderStatus leaderStatus,
             IDateTimeProvider dateTimeProvider,
-            IHttpClientFactory clientFactory)
+            IHttpClientFactory clientFactory,
+            IGslbManager gslbManager)
         {
             _logger = logger;
             _ingressManager = ingressManager;
@@ -45,6 +48,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _leaderStatus = leaderStatus;
             _dateTimeProvider = dateTimeProvider;
             _clientFactory = clientFactory;
+            _gslbManager = gslbManager;
             _lifetime.ApplicationStopping.Register(OnApplicationStopping);
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _shutdownEvent = new ManualResetEvent(false);
@@ -61,42 +65,44 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 _logger.LogInformation("Synchronizing local cluster");
                 var ipAddresses = new Dictionary<string, List<HostIP>>();
                 var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
-                var validServiceHosts = new Dictionary<string, V1Service>();
+                var validServiceHosts = new List<V1Service>();
                 var validIngressHosts = new Dictionary<string, V1Ingress>();
                 var invalidHostnames = new List<string>();
                 IList<V1Ingress>? ingresses = null;
                 IList<V1Service>? services = null;
                 IList<V1Endpoints>? endpoints = null;
                 IList<V1Service>? loadBalancerServices = null;
+                V1Gslb[]? gslbs = null;
+
                 Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
                 var myHosts = Array.Empty<string>();
                 _logger.LogTrace("Initiating namespace getter");
                 var namespaces = await _namespaceManager.GetNamsepacesAsync();
                 _logger.LogTrace("Got the namespaces");
 
-                _logger.LogTrace("Getting ingresses, services and endpoints");
+                _logger.LogTrace("Getting ingresses, services, endpoints and gslbs");
                 await Task.WhenAll(
                     Task.Run(async () => myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier)),
                     Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync(namespaces)),
                     Task.Run(async () => services = await _serviceManager.GetServicesAsync(namespaces)),
-                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(namespaces)));
-                _logger.LogTrace("Got ingresses, services and endpoints");
+                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(namespaces)),
+                    Task.Run(async () => gslbs = await _gslbManager.GetGslbsAsync()));
 
-                _logger.LogDebug("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints}", ingresses!.Count, services!.Count, endpoints!.Count);
+                _logger.LogTrace("Got ingresses, services, endpoints and gslbs");
+
+                _logger.LogDebug("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints} gslbs-{@gslbs}", ingresses!.Count, services!.Count, endpoints!.Count, gslbs!.Length);
                 _logger.LogTrace("Current hostnames: {@hostnames}", (object)myHosts);
 
                 _logger.LogTrace("Getting available hostnames and load balancer services");
                 await Task.WhenAll(
                     Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpoints)),
-                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerEndpointsAsync(services)));
+                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerServicesAsync(services, endpoints)));
                 _logger.LogTrace("Done getting available hostnames and load balancer services");
 
-                _logger.LogTrace("Getting available hostnames from services");
-                var serviceHosts = await _serviceManager.GetAvailableHostnamesAsync(loadBalancerServices!, endpoints);
                 _logger.LogTrace("Done getting available hostnames from services");
 
-                _logger.LogDebug("Counts validingresses-{@ingress} load balancer services-{@lbservices} valid services-{@services}",
-                    ingressHosts!.Count, loadBalancerServices!.Count, serviceHosts.Count);
+                _logger.LogDebug("Counts validingresses-{@ingress} valid load balancer services-{@lbservices}",
+                    ingressHosts!.Count, loadBalancerServices!.Count);
 
                 _logger.LogDebug("Setting service tracking");
                 _logger.LogDebug("Purging current tracked list");
@@ -129,68 +135,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 }
                 _logger.LogDebug("Done tracking services");
 
-                foreach (var service in serviceHosts)
-                {
-                    _logger.LogDebug("Checking service: {hostname}", service.Key);
-                    var valid = true;
-                    if (service.Value.Count > 1)
-                    {
-                        _logger.LogWarning("Too many service hosts for {hostname} {@services}",
-                            service.Key,
-                            service.Value.Select(s => new
-                            {
-                                Namespace = s.Namespace(),
-                                Name = s.Name()
-                            }));
-                        invalidHostnames.Add(service.Key);
-                        valid = false;
-                    }
-
-                    if (ingressHosts.ContainsKey(service.Key))
-                    {
-                        _logger.LogWarning("Host {hostname} exists in both an ingress and a service {@services} {@ingresses}",
-                            service.Key,
-                            service.Value.Select(s => new
-                            {
-                                Namespace = s.Namespace(),
-                                Name = s.Name()
-                            }),
-                            ingressHosts[service.Key].Select(i => new
-                            {
-                                Namespace = i.Namespace(),
-                                Name = i.Name()
-                            }));
-                        invalidHostnames.Add(service.Key);
-                        valid = false;
-                    }
-
-                    if (valid)
-                    {
-                        validServiceHosts[service.Key] = service.Value[0];
-                    }
-                }
+                
 
                 foreach (var ingressHost in ingressHosts)
                 {
                     using var ingressHostScope = _logger.BeginScope("{hostname}", ingressHost.Key);
 
                     _logger.LogDebug("Checking ingress for validity");
-                    if (serviceHosts.ContainsKey(ingressHost.Key))
-                    {
-                        _logger.LogWarning("Host {hostname} exists in both an ingress and a service {@services} {@ingresses}",
-                            ingressHost.Key,
-                            serviceHosts[ingressHost.Key].Select(s => new
-                            {
-                                Namespace = s.Namespace(),
-                                Name = s.Name()
-                            }),
-                            ingressHost.Value.Select(i => new
-                            {
-                                Namespace = i.Namespace(),
-                                Name = i.Name()
-                            }));
-                        continue;
-                    }
 
                     foreach (var ingress in ingressHost.Value)
                     {
@@ -216,90 +167,92 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                 }
 
-                foreach (var service in validServiceHosts)
+                var gslbHostnames = gslbs.SelectMany(gslb => gslb.Hostnames.Select(host => new KeyValuePair<string, V1Gslb>(host, gslb)));
+                var gslbToHostnames = gslbHostnames.GroupBy(g => g.Key).ToDictionary(g => g.Key, g => g.Select(x => x.Value).ToArray());
+                foreach (var gslb in gslbToHostnames)
                 {
-                    _logger.LogInformation("Found valid service: {namespace}/{name}", service.Value.Namespace(), service.Value.Name());
-                    var addresses = service.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
-                    var priorityAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
-                    if (string.IsNullOrWhiteSpace(priorityAnnotation))
+                    using var gslbScope = _logger.BeginScope("{hostname}", gslb.Key);
+                    try
                     {
-                        _logger.LogTrace("No priority annotation, defaulting to 0");
-                        priorityAnnotation = "0";
-                    }
-
-                    if (!int.TryParse(priorityAnnotation, out var priority) &&
-                        priorityAnnotation != null)
-                    {
-                        _logger.LogError("Priority annotation was not parsable as an int, defaulting to 0.");
-                    }
-
-                    var weightAnnotation = service.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
-                    if (string.IsNullOrWhiteSpace(weightAnnotation))
-                    {
-                        _logger.LogTrace("No weight annotation, defaulting to 50");
-                        weightAnnotation = "50";
-                    }
-                    if (!int.TryParse(weightAnnotation, out var weight))
-                    {
-                        weight = 50;
-                        _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
-                    }
-
-                    if (!ipAddresses.ContainsKey(service.Key))
-                    {
-                        ipAddresses[service.Key] = new List<HostIP>();
-                    }
-
-                    ipAddresses[service.Key].AddRange(addresses.Select(address => new HostIP
-                    {
-                        IPAddress = address.ToString(),
-                        Priority = priority,
-                        Weight = weight,
-                        ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
-                    }));
-                }
-
-                foreach (var ingress in validIngressHosts)
-                {
-                    using var scope = _logger.BeginScope("{namespace}/{name}", ingress.Value.Namespace(), ingress.Value.Name());
-                    _logger.LogDebug("Found valid ingress");
-                    var addresses = ingress.Value.Status.LoadBalancer.Ingress.Select(ingress => IPAddress.Parse(ingress.Ip)).ToArray();
-                    _logger.LogTrace("Addresses: {@addresses}", (object)addresses);
-
-                    var priorityAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/priority");
-                    if (!int.TryParse(priorityAnnotation, out var priority) &&
-                        priorityAnnotation != null)
-                    {
-                        _logger.LogError("Priority annotation was not parsable as an int, defaulting to 0.");
-                    }
-
-                    var weightAnnotation = ingress.Value.GetAnnotation("multicluster.veccsolutions.com/weight");
-                    if (!int.TryParse(weightAnnotation, out var weight))
-                    {
-                        weight = 50;
-                        if (weightAnnotation != null)
+                        if (invalidHostnames.Contains(gslb.Key))
                         {
-                            _logger.LogError("Weight annotation was not parsable as an int, defaulting to 50");
+                            _logger.LogWarning("GSLB hostname is in the list of invalid hostname, skipping");
+                            continue;
+                        }
+
+                        if (gslb.Value.All(x => x.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Service))
+                        {
+                            _logger.LogDebug("GSLB reference type is a service");
+
+                            if (gslb.Value.Length > 1)
+                            {
+                                _logger.LogWarning("GSLB hostname {hostname} has multiple services, skipping. Expected to find only one service: {@services}", gslb.Key, gslb.Value.Select(x => x.Metadata.NamespaceProperty + "/" + x.ObjectReference.Name));
+                                continue;
+                            }
+
+                            var gslbServices = validServiceHosts.Where(s => gslb.Value.Any(g => g.Metadata.NamespaceProperty == s.Metadata.NamespaceProperty && g.ObjectReference.Name == s.Metadata.Name)).ToArray();
+                            if (gslbServices.Count() == 0)
+                            {
+                                _logger.LogWarning("GSLB hostname {hostname} has no valid service, skipping. Expected to find valid services: {@validServices}", gslb.Key, gslb.Value.Select(x => x.Metadata.NamespaceProperty + "/" + x.ObjectReference.Name));
+                                continue;
+                            }
+
+                            _logger.LogTrace("Found valid services: {@services}", gslbServices.Select(s => s.Metadata.NamespaceProperty + "/" + s.Metadata.Name));
+
+                            var service = gslbServices[0]!;
+                            var endpoint = endpoints.FirstOrDefault(e => e.Namespace() == service.Namespace() && e.Name() == service.Name());
+
+                            if (endpoint == null)
+                            {
+                                _logger.LogWarning("Endpoints not found for {service}. Skipping", service.Namespace() + "/" + service.Name());
+                                continue;
+                            }
+
+                            if ((endpoint.Subsets?.Count ?? 0) == 0)
+                            {
+                                _logger.LogWarning("Service has no backend endpoints. Skipping.");
+                                continue;
+                            }
+
+                            ipAddresses[gslb.Key] = gslbServices.Select(s =>
+                                new HostIP
+                                {
+                                    IPAddress = s.Status.LoadBalancer.Ingress.First().Ip,
+                                    Priority = gslb.Value.Max(x => x.Priority),
+                                    Weight = gslb.Value.Max(x => x.Weight),
+                                    ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
+                                }).ToList();
+                        }
+                        else if (gslb.Value.All(x => x.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress))
+                        {
+                            _logger.LogDebug("GSLB reference type is an ingress");
+                            var gslbIngresses = validIngressHosts.Values.Where(s => gslb.Value.Any(g => g.Metadata.NamespaceProperty == s.Metadata.NamespaceProperty && g.ObjectReference.Name == s.Metadata.Name)).ToArray();
+                            if (gslbIngresses.Count() == 0)
+                            {
+                                _logger.LogWarning("GSLB hostname {hostname} has no valid ingresses, skipping. Expected to find valid ingress: {@validIngresses}", gslb.Key, gslb.Value.Select(x => x.Metadata.NamespaceProperty + "/" + x.ObjectReference.Name));
+                                continue;
+                            }
+                            _logger.LogTrace("Found valid ingresses: {@ingresses}", gslbIngresses.Select(s => s.Metadata.NamespaceProperty + "/" + s.Metadata.Name));
+
+                            ipAddresses[gslb.Key] = gslbIngresses.Select(s =>
+                                new HostIP
+                                {
+                                    IPAddress = s.Status.LoadBalancer.Ingress.First().Ip,
+                                    Priority = gslb.Value.Max(x => x.Priority),
+                                    Weight = gslb.Value.Max(x => x.Weight),
+                                    ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
+                                }).ToList();
+                        }
+                        else
+                        {
+                            _logger.LogWarning("GSLB hostname {hostname} has mixed references, skipping", gslb.Key);
+                            continue;
                         }
                     }
-
-                    if (!ipAddresses.ContainsKey(ingress.Key))
+                    catch (Exception exception)
                     {
-                        _logger.LogTrace("Setting empty list for {key}", ingress.Key);
-                        ipAddresses[ingress.Key] = new List<HostIP>();
+                        _logger.LogError(exception, "Error processing gslb hostname {hostname}", gslb.Key);
                     }
-
-                    _logger.LogTrace("Adding {@addresses} to the list of ips for {key}", addresses, ingress.Key);
-
-                    ipAddresses[ingress.Key].AddRange(addresses.Select(address => new HostIP
-                    {
-                        IPAddress = address.ToString(),
-                        Priority = priority,
-                        Weight = weight,
-                        ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
-                    }));
-
-                    _logger.LogTrace("Resulting addresses {@ipaddresses}", ipAddresses[ingress.Key]);
                 }
 
                 foreach (var host in ipAddresses)

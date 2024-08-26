@@ -16,9 +16,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             IOptionsMonitor<ApiAuthenticationHandlerOptions> options,
             ILoggerFactory logger,
             UrlEncoder encoder,
-            ISystemClock clock,
+            TimeProvider clock,
             ApiAuthenticationHasher hasher)
-            : base(options, logger, encoder, clock)
+            : base(options, logger, encoder)
         {
             _options = options;
             _hasher = hasher;

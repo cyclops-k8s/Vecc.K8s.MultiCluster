@@ -1,6 +1,7 @@
 ﻿using k8s.Models;
 using KubeOps.Abstractions.Controller;
 using KubeOps.Abstractions.Rbac;
+using KubeOps.KubernetesClient;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
 
@@ -10,17 +11,19 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Endpoints), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Namespace), Verbs = RbacVerb.List | RbacVerb.Get)]
-    public class K8sChangedController : IEntityController<V1Ingress>, IEntityController<V1Service>, IEntityController<V1Endpoints>
+    public class K8sChangedController : IEntityController<V1Ingress>, IEntityController<V1Service>, IEntityController<V1Endpoints>, IEntityController<V1Gslb>
     {
         private readonly ILogger<K8sChangedController> _logger;
         private readonly ICache _cache;
         private readonly IHostnameSynchronizer _synchronizer;
+        private readonly IKubernetesClient _client;
 
-        public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer)
+        public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer, IKubernetesClient client)
         {
             _logger = logger;
             _cache = cache;
             _synchronizer = synchronizer;
+            _client = client;
         }
 
         public async Task DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
@@ -57,6 +60,72 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         {
             _logger.LogInformation("Endpoints {@namespace}/{@endpoints} reconcile requested", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
+        }
+
+        public async Task ReconcileAsync(V1Gslb entity, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("GSLB {@namespace}/{@name} reconcile requested", entity.Namespace(), entity.Name());
+
+            if (entity.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
+            {
+                _logger.LogInformation("GSLB {@namespace}/{@name} has ingress references, syncing", entity.Namespace(), entity.Name());
+                var ingress = await _client.GetAsync<V1Ingress>(entity.ObjectReference.Name, entity.Namespace());
+                if (ingress == null)
+                {
+                    _logger.LogError("Ingress {@namespace}/{@name} not found", entity.Namespace(), entity.Name());
+                }
+                else
+                {
+                    await _synchronizer.SynchronizeLocalIngressAsync(ingress);
+                }
+            }
+            else
+            {
+                _logger.LogInformation("GSLB {@namespace}/{@name} has service references, syncing", entity.Namespace(), entity.Name());
+                var service = await _client.GetAsync<V1Service>(entity.ObjectReference.Name, entity.Namespace());
+                if (service == null)
+                {
+                    _logger.LogError("Service {@namespace}/{@name} not found", entity.Namespace(), entity.Name());
+                }
+                else
+                {
+                    await _synchronizer.SynchronizeLocalServiceAsync(service);
+                }
+            }
+        }
+
+        public async Task DeletedAsync(V1Gslb entity, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("GSLB {@namespace}/{@name} delete requested", entity.Namespace(), entity.Name());
+
+            if (entity.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
+            {
+                _logger.LogInformation("GSLB {@namespace}/{@name} has ingress references, syncing", entity.Namespace(), entity.Name());
+                var ingress = await _client.GetAsync<V1Ingress>(entity.ObjectReference.Name, entity.Namespace());
+                if (ingress == null)
+                {
+                    _logger.LogInformation("Ingress {@namespace}/{@name} not found, resyncing cluster", entity.Namespace(), entity.Name());
+                    await _synchronizer.SynchronizeLocalClusterAsync();
+                }
+                else
+                {
+                    await _synchronizer.SynchronizeLocalIngressAsync(ingress);
+                }
+            }
+            else
+            {
+                _logger.LogInformation("GSLB {@namespace}/{@name} has service references, syncing", entity.Namespace(), entity.Name());
+                var service = await _client.GetAsync<V1Service>(entity.ObjectReference.Name, entity.Namespace());
+                if (service == null)
+                {
+                    _logger.LogInformation("Service {@namespace}/{@name} not found, resyncing cluster", entity.Namespace(), entity.Name());
+                    await _synchronizer.SynchronizeLocalClusterAsync();
+                }
+                else
+                {
+                    await _synchronizer.SynchronizeLocalServiceAsync(service);
+                }
+            }
         }
 
         private async Task SyncEndpointsIfRequiredAsync(V1Endpoints endpoints)

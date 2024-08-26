@@ -67,3 +67,14 @@ spec:
             name: nginx
             port: 
               number: 80
+---
+apiVersion: multicluster.veccsolutions.io/v1alpha
+kind: GSLB
+metadata:
+  name: test
+  namespace: failover
+hostnames:
+- failover.test
+objectReference:
+  kind: Ingress
+  name: nginx

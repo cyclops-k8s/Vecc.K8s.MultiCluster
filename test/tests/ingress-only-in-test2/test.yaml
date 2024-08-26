@@ -67,3 +67,14 @@ spec:
             name: nginx
             port: 
               number: 80
+---
+apiVersion: multicluster.veccsolutions.io/v1alpha
+kind: GSLB
+metadata:
+  name: test
+  namespace: only-in-test2
+hostnames:
+- only-in-test2.test2
+objectReference:
+  kind: Ingress
+  name: nginx

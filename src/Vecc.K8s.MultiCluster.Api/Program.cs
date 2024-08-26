@@ -80,6 +80,7 @@ else if (args.Any(arg => arg == "--front-end"))
 builder.Services.AddSingleton<LeaderStatus>();
 builder.Services.AddSingleton<LeaderStateChanged>();
 builder.Services.AddSingleton<DefaultDnsResolver>();
+builder.Services.AddSingleton<IGslbManager, DefaultGslbManager>();
 builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
 builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
 builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
