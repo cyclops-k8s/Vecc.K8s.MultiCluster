@@ -20,6 +20,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             _logger = logger;
             _queue = queue;
         }
+
         public Task DeletedAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Hostname cache {@namespace}/{@hostname} deleted", entity.Namespace(), entity.Name());

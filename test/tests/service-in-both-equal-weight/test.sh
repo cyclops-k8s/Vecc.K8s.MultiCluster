@@ -24,16 +24,10 @@ setup() {
     echo "Waiting for resource"
     wait_for_resource pod condition=ready app=nginx
     (( RETCODE+=$? )) || true
-    echo "Waiting for ingress"
-    wait_for_ingress nginx
-    (( RETCODE+=$? )) || true
 
     use_context 2
     echo "Waiting for resource"
     wait_for_resource pod condition=ready app=nginx
-    (( RETCODE+=$? )) || true
-    echo "Waiting for ingress"
-    wait_for_ingress nginx
     (( RETCODE+=$? )) || true
 
     echo "Giving it a second for the api's to register everything"

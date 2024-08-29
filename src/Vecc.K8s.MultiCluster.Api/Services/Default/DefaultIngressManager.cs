@@ -21,70 +21,14 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<IList<V1Ingress>> GetIngressesAsync(string? ns)
-        {
-            var result = new List<V1Ingress>();
+        public async Task<IList<V1Ingress>> GetIngressesAsync()
+        {   _logger.LogDebug("Getting ingress objects in the cluster");
 
-            if (string.IsNullOrWhiteSpace(ns))
-            {
-                _logger.LogDebug("{@namespace} is empty, getting all ingress objects from all namespaces", ns);
-                return await GetAllIngressesAsync();
-            }
-
-            _logger.LogDebug("Getting ingress objects in {@namespace}", ns);
-            var ingresses = await _kubernetesClient.ListAsync<V1Ingress>(ns);
-            _logger.LogDebug("Done getting ingress objects in {@namespace}", ns);
-
-            result.AddRange(ingresses);
+            var result = await _kubernetesClient.ListAsync<V1Ingress>();
+            _logger.LogDebug("Done getting ingress objects: {count}", result.Count);
 
             return result;
         }
-
-        [Trace]
-        public Task<IList<V1Ingress>> GetIngressesAsync(IList<V1Namespace> namespaces) => GetAllIngressesAsync(namespaces);
-
-        [Trace]
-        public async Task<IList<V1Ingress>> GetValidIngressesAsync(string? ns)
-        {
-            var result = new List<V1Ingress>();
-
-            if (string.IsNullOrWhiteSpace(ns))
-            {
-                _logger.LogDebug("{@namespace} is empty. We will get all valid ingress objects from all namespaces", ns);
-                return await GetAllValidIngressesAsync();
-            }
-
-            _logger.LogDebug("Getting ingress objects in {@namespace}", ns);
-            var k8sIngresses = await _kubernetesClient.ListAsync<V1Ingress>(ns);
-
-            _logger.LogDebug("Getting service objects in {@namespace}", ns);
-            var k8sServices = await _serviceManager.GetServicesAsync(ns);
-
-            _logger.LogDebug("Getting endpoints in {@namespace}", ns);
-            var k8sServiceEndpoints = await _serviceManager.GetEndpointsAsync(ns);
-            _logger.LogDebug("Done getting Kubernetes objects");
-
-            _logger.LogDebug("Finding ingresses with the loadbalancer set");
-            foreach (var ingress in k8sIngresses)
-            {
-                using var ingressScope = _logger.BeginScope("{@namespace}/{@ingress}", ingress.Namespace(), ingress.Name());
-                _logger.LogDebug("Got ingress");
-
-                if (IsIngressValid(ingress, k8sServices, k8sServiceEndpoints))
-                {
-                    result.Add(ingress);
-                }
-                else
-                {
-                    _logger.LogWarning("Ingress is invalid");
-                }
-            }
-
-            return result;
-        }
-
-        [Trace]
-        public Task<IList<V1Ingress>> GetValidIngressesAsync(IList<V1Namespace> namespaces) => GetAllValidIngressesAsync(namespaces);
 
         [Trace]
         public Task<Dictionary<string, IList<V1Ingress>>> GetAvailableHostnamesAsync(
@@ -353,57 +297,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             return result;
 
-        }
-
-        [Trace]
-        private async Task<IList<V1Ingress>> GetAllIngressesAsync(IList<V1Namespace>? namespaces = null)
-        {
-            if (namespaces == null)
-            {
-                namespaces = await _namespaceManager.GetNamsepacesAsync();
-            }
-            var result = new List<V1Ingress>();
-
-            var tasks = namespaces.Select(space => Task.Run(async () =>
-            {
-                var ingresses = await GetIngressesAsync(space.Name());
-                return ingresses;
-            }));
-
-            await Task.WhenAll(tasks);
-
-            foreach (var task in tasks)
-            {
-                result.AddRange(task.Result);
-            }
-
-            return result;
-        }
-
-        [Trace]
-        private async Task<IList<V1Ingress>> GetAllValidIngressesAsync(IList<V1Namespace>? namespaces = null)
-        {
-            if (namespaces == null)
-            {
-                namespaces = await _namespaceManager.GetNamsepacesAsync();
-            }
-
-            var result = new List<V1Ingress>();
-
-            var tasks = namespaces.Select(space => Task.Run(async () =>
-            {
-                var ingresses = await GetValidIngressesAsync(space.Name());
-                return ingresses;
-            }));
-
-            await Task.WhenAll(tasks);
-
-            foreach (var task in tasks)
-            {
-                result.AddRange(task.Result);
-            }
-
-            return result;
         }
     }
 }

@@ -57,8 +57,8 @@ setup() {
         return $RETCODE
     fi
 
-    echo "Giving it 10 seconds for the api's to register everything"
-    sleep 15
+    echo "Giving it 20 seconds for the api's to register everything"
+    sleep 20
     return $RETCODE
 }
 
@@ -147,10 +147,8 @@ assert() {
     use_context 2
     echo "Stopping mcingress-operator pods (except dns and orchestrator) at $(date)"
     kubectl patch deployment -n mcingress-operator operator-operator -p '{"spec":{"replicas":0}}'
-    kubectl patch deployment -n mcingress-operator operator-api-server -p '{"spec":{"replicas":0}}'
 
     wait_for_resource_missing pod app=operator 30
-    wait_for_resource_missing pod api-server 30
 
     echo "Scaled down the controllers at $(date)"
 
@@ -245,10 +243,10 @@ cleanup() {
 
     use_context 2
 
+    set_namespace mcingress-operator
     kubectl patch deployment -n mcingress-operator operator-operator -p '{"spec":{"replicas":1}}'
-    kubectl patch deployment -n mcingress-operator operator-api-server -p '{"spec":{"replicas":1}}'
-    wait_for_resource pod condition=ready component=orchestrator 90
-    wait_for_resource pod condition=ready component=api-server 90
+    (( RESULT+=$? )) || true
+    wait_for_resource pod condition=ready component=operator 90
 
     kubectl delete namespace cluster-failover
     (( RESULT+=$? )) || true

@@ -19,21 +19,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<List<V1Service>> GetServicesAsync(string? ns)
+        public async Task<IList<V1Service>> GetServicesAsync()
         {
-            if (string.IsNullOrWhiteSpace(ns))
-            {
-                _logger.LogDebug("{@namespace} is empty. We will get service objects from all namespaces", ns);
-                return await GetAllServicesAsync();
-            }
+            _logger.LogDebug("Getting services in the cluster");
 
-            var result = new List<V1Service>();
-
-            _logger.LogDebug("Getting services in {@namespace}", ns);
-            var k8sServices = await _kubernetesClient.ListAsync<V1Service>(ns);
-            _logger.LogDebug("Done getting services in {@namespace}", ns);
-
-            result.AddRange(k8sServices);
+            var result = await _kubernetesClient.ListAsync<V1Service>();
+            _logger.LogDebug("Done getting services in {count}", result.Count);
 
             return result;
         }
@@ -94,79 +85,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public Task<List<V1Service>> GetServicesAsync(IList<V1Namespace> namespaces) => GetAllServicesAsync(namespaces);
-
-        [Trace]
-        public Task<List<V1Endpoints>> GetEndpointsAsync(IList<V1Namespace> namespaces) => GetAllEndpointsAsync(namespaces);
-
-        [Trace]
-        public async Task<List<V1Endpoints>> GetEndpointsAsync(string? ns)
+        public async Task<IList<V1Endpoints>> GetEndpointsAsync()
         {
-            if (string.IsNullOrWhiteSpace(ns))
-            {
-                _logger.LogDebug("{@namespace} is empty, getting endpoint objects from all namespaces", ns);
-                return await GetAllEndpointsAsync();
-            }
+            _logger.LogDebug("Getting endpoints in the cluster");
 
-            var result = new List<V1Endpoints>();
-
-            _logger.LogDebug("Getting endpoints in {@namespace}", ns);
-            var endpoints = await _kubernetesClient.ListAsync<V1Endpoints>(ns);
-            _logger.LogDebug("Done getting endpoints in {@namespace}", ns);
-
-            result.AddRange(endpoints);
-
-            return result;
-        }
-
-        [Trace]
-        private async Task<List<V1Service>> GetAllServicesAsync(IList<V1Namespace>? namespaces = null)
-        {
-            if (namespaces == null)
-            {
-                namespaces = await _namespaceManager.GetNamsepacesAsync();
-            }
-
-            var result = new List<V1Service>();
-
-            var tasks = namespaces.Select(space => Task.Run(async () =>
-            {
-                var services = await GetServicesAsync(space.Name());
-                return services;
-            }));
-
-            await Task.WhenAll(tasks);
-
-            foreach (var task in tasks)
-            {
-                result.AddRange(task.Result);
-            }
-
-            return result;
-        }
-
-        [Trace]
-        private async Task<List<V1Endpoints>> GetAllEndpointsAsync(IList<V1Namespace>? namespaces = null)
-        {
-            if (namespaces == null)
-            {
-                namespaces = await _namespaceManager.GetNamsepacesAsync();
-            }
-
-            var result = new List<V1Endpoints>();
-
-            var tasks = namespaces.Select(space => Task.Run(async () =>
-            {
-                var endpoints = await GetEndpointsAsync(space.Name());
-                return endpoints;
-            }));
-
-            await Task.WhenAll(tasks);
-
-            foreach (var task in tasks)
-            {
-                result.AddRange(task.Result);
-            }
+            var result = await _kubernetesClient.ListAsync<V1Endpoints>();
+            _logger.LogDebug("Done getting endpoints {count}", result.Count);
 
             return result;
         }

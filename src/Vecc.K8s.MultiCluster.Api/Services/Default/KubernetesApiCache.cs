@@ -65,7 +65,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task<Models.Core.Host?> GetHostInformationAsync(string hostname)
         {
             _logger.LogTrace("Getting host information for {hostname}", hostname);
-            var host = await _kubernetesClient.GetAsync<V1HostnameCache>(hostname, _options.Value.Namespace);
+            var host = await GetOrCreateHostnameCache(hostname, false);
 
             if (host != null)
             {
@@ -78,7 +78,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 return result;
             }
 
-            _logger.LogTrace("Host information for {hostname} not found", hostname);
+            _logger.LogInformation("Host information for {hostname} not found, it was probably deleted", hostname);
             return null;
         }
 
@@ -255,7 +255,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     _logger.LogDebug("No changes found for {@hostname}", host.Key);
                 }
                 //check for address changes
-                if (outOfSync)
+                if (outOfSync && host.Value.Count != 0)
                 {
                     _logger.LogTrace("Setting host cache for {@hostname} from {@oldAddresses} to {@addresses}", host.Key, hostcache.Addresses, host.Value);
                     hostcache!.Addresses = host.Value.Select(V1HostnameCache.HostIPCache.FromCore).ToArray();
@@ -268,7 +268,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             foreach (var hostcache in hostcaches)
             {
                 var hostname = hostcache.GetLabel("hostname");
-                if (!hosts.ContainsKey(hostname))
+                if (!hosts.ContainsKey(hostname) || hosts[hostname].Count == 0)
                 {
                     _logger.LogDebug("Removing host cache entry for {@hostname}", hostname);
                     await _kubernetesClient.DeleteAsync(hostcache);

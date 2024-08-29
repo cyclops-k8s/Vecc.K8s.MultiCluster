@@ -66,7 +66,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 _logger.LogInformation("Synchronizing local cluster");
                 var ipAddresses = new Dictionary<string, List<HostIP>>();
                 var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;
-                var validServiceHosts = new List<V1Service>();
                 var validIngressHosts = new Dictionary<string, V1Ingress>();
                 var invalidHostnames = new List<string>();
                 IList<V1Ingress>? ingresses = null;
@@ -78,15 +77,15 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
                 var myHosts = Array.Empty<Models.Core.Host>();
                 _logger.LogTrace("Initiating namespace getter");
-                var namespaces = await _namespaceManager.GetNamsepacesAsync();
+                //var namespaces = await _namespaceManager.GetNamsepacesAsync();
                 _logger.LogTrace("Got the namespaces");
 
                 _logger.LogTrace("Getting ingresses, services, endpoints and gslbs");
                 await Task.WhenAll(
                     Task.Run(async () => myHosts = (await _cache.GetHostsAsync(_multiClusterOptions.Value.ClusterIdentifier) ?? Array.Empty<Models.Core.Host>())),
-                    Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync(namespaces)),
-                    Task.Run(async () => services = await _serviceManager.GetServicesAsync(namespaces)),
-                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(namespaces)),
+                    Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync()),
+                    Task.Run(async () => services = await _serviceManager.GetServicesAsync()),
+                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync()),
                     Task.Run(async () => gslbs = await _gslbManager.GetGslbsAsync()));
 
                 _logger.LogTrace("Got ingresses, services, endpoints and gslbs");
@@ -97,7 +96,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 _logger.LogTrace("Getting available hostnames and load balancer services");
                 await Task.WhenAll(
                     Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpoints)),
-                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerServicesAsync(services, endpoints)));
+                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerServicesAsync(services, endpoints))
+                    );
                 _logger.LogTrace("Done getting available hostnames and load balancer services");
 
                 _logger.LogTrace("Done getting available hostnames from services");
@@ -171,6 +171,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 foreach (var gslb in gslbToHostnames)
                 {
                     using var gslbScope = _logger.BeginScope("{hostname}", gslb.Key);
+
                     try
                     {
                         if (invalidHostnames.Contains(gslb.Key))
@@ -189,10 +190,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                                 continue;
                             }
 
-                            var gslbServices = validServiceHosts.Where(s => gslb.Value.Any(g => g.Metadata.NamespaceProperty == s.Metadata.NamespaceProperty && g.ObjectReference.Name == s.Metadata.Name)).ToArray();
+                            var gslbServices = loadBalancerServices.Where(s =>
+                                gslb.Value.Any(g =>
+                                    g.Metadata.NamespaceProperty == s.Metadata.NamespaceProperty &&
+                                    g.ObjectReference.Name == s.Metadata.Name)).ToArray();
+
                             if (gslbServices.Length == 0)
                             {
-                                _logger.LogWarning("GSLB hostname {hostname} has no valid service, skipping. Expected to find valid services: {@validServices}", gslb.Key, gslb.Value.Select(x => x.Metadata.NamespaceProperty + "/" + x.ObjectReference.Name));
+                                _logger.LogWarning("GSLB hostname {hostname} has no valid service, skipping. Expected to find valid services: {namespace}/{name} {@validServices}",
+                                    gslb.Key,
+                                    gslb.Value[0].Metadata.NamespaceProperty,
+                                    gslb.Value[0].ObjectReference.Name,
+                                    loadBalancerServices.Select(s => s.Metadata.NamespaceProperty + "/" + s.Metadata.Name));
+
                                 continue;
                             }
 

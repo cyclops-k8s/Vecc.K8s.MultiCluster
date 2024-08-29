@@ -30,15 +30,6 @@ setup() {
         return $RETCODE
     fi
 
-    echo "Waiting for ingress"
-    wait_for_ingress nginx
-    (( RETCODE+=$? )) || true
-    if [ $RETCODE != 0 ]
-    then
-        echo "Failed to wait for ingress"
-        return $RETCODE
-    fi
-
     use_context 2
     echo "Waiting for resource"
     wait_for_resource pod condition=ready app=nginx
@@ -48,17 +39,8 @@ setup() {
         return $RETCODE
     fi
 
-    echo "Waiting for ingress"
-    wait_for_ingress nginx
-    (( RETCODE+=$? )) || true
-    if [ $RETCODE != 0 ]
-    then
-        echo "Failed to wait for ingress"
-        return $RETCODE
-    fi
-
-    echo "Giving it 10 seconds for the api's to register everything"
-    sleep 15
+    echo "Giving it 20 seconds for the api's to register everything"
+    sleep 20
     return $RETCODE
 }
 
@@ -116,7 +98,7 @@ assert() {
         echo "Running $COUNT of 100"
         (( COUNT++ ))
 
-        ACTUAL=$(get_ip 2 failover.test)
+        ACTUAL=$(get_ip 2 service.failover.test)
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
@@ -162,7 +144,7 @@ assert() {
         echo "Running $COUNT of 100"
         (( COUNT++ ))
 
-        ACTUAL=$(get_ip 1 failover.test)
+        ACTUAL=$(get_ip 1 service.failover.test)
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
@@ -200,7 +182,7 @@ assert() {
         echo "Running $COUNT of 100"
         (( COUNT++ ))
 
-        ACTUAL=$(get_ip 1 failover.test)
+        ACTUAL=$(get_ip 1 service.failover.test)
         if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
         then
             echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"

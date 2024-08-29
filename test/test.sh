@@ -19,10 +19,12 @@ function terminate() {
     kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-dns-server.log"
     kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-api-server.log"
     kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-orchestrator.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
     mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test2"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-dns-server.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-api-server.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-orchestrator.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
 
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
     tar -czf "$DIRECTORY/$RESULTS" --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null

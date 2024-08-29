@@ -40,7 +40,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nginx
-  namespace: failover
+  namespace: test-in-both-equal-weight
 spec:
   type: LoadBalancer
   selector:
@@ -53,7 +53,7 @@ apiVersion: multicluster.veccsolutions.io/v1alpha
 kind: GSLB
 metadata:
   name: test
-  namespace: failover
+  namespace: test-in-both-equal-weight
 hostnames:
 - service.test-in-both-equal-weight.test
 objectReference:

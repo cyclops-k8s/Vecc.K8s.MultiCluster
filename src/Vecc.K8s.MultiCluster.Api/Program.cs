@@ -66,7 +66,8 @@ if (args.Contains(OperatorFlag))
     })
         .AddController<K8sChangedController, V1Ingress>()
         .AddController<K8sChangedController, V1Service>()
-        .AddController<K8sChangedController, V1Endpoints>();
+        .AddController<K8sChangedController, V1Endpoints>()
+        .AddController<K8sChangedController, V1Gslb>();
 }
 else if (args.Contains(OrchestratorFlag))
 {
