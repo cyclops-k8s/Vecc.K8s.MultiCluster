@@ -1,18 +1,20 @@
 resources:
 - namespace.yaml
 - ingress-namespace.yaml
-- api-server-role-bindings.yaml
+- api-server-role-binding.yaml
 - api-server-role.yaml
 - configmap.yaml
 - crds.yaml
 - deployment.yaml
-- dns-server-role-bindings.yaml
+- dns-server-role-binding.yaml
 - dns-server-role.yaml
 - ingress-deployment.yaml
 - ingress-role-binding.yaml
 - ingress-role.yaml
-- orchestrator-roles.yaml
-- orchestrator-role-bindings.yaml
+- operator-role-bindings.yaml
+- operator-roles.yaml
+- orchestrator-role.yaml
+- orchestrator-role-binding.yaml
 - service-accounts.yaml
 - service-api.yaml
 - service-dns.yaml

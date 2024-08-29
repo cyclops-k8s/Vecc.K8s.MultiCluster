@@ -77,7 +77,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Transaction]
         public async Task InitializeAsync()
         {
-            var hostnames = await _cache.GetHostnamesAsync(string.Empty);
+            var hostnames = await _cache.GetHostnamesAsync();
 
             if (hostnames != null)
             {

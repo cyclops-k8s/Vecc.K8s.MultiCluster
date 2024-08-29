@@ -37,6 +37,8 @@ set -e
 
 . ./functions.sh
 
+echo_color "${G}Temp directory is ${Y}${TEMPDIRECTORY}"
+
 echo_color "${G}Downloading kind"
 
 mkdir -p .test
@@ -82,6 +84,7 @@ echo_color "${G}Setting KUBECONFIG path"
 KUBECONFIG_FILE=$(pwd)/.test/cluster.config
 export KUBECONFIG="$KUBECONFIG_FILE"
 
+set -e
 
 ./create-docker-registry.sh
 

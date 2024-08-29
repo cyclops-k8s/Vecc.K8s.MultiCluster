@@ -1,29 +1,8 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-orchestrator
+  name: multicluster-operator
 rules:
-- apiGroups:
-  - networking.k8s.io
-  - ""
-  resources:
-  - ingresses
-  - services
-  - endpoints
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  - namespaces
-  verbs:
-  - create
-  - get
-  - list
-  - update
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -31,36 +10,29 @@ rules:
   verbs:
   - '*'
 - apiGroups:
-  - apps
+  - networking.k8s.io
+  - ""
   resources:
-  - deployments
+  - ingresses
+  - services
+  - endpoints
+  - namespaces
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - networking.k8s.io
   resources:
   - ingresses/status
   verbs:
   - get
-  - patch
-  - update
 - apiGroups:
   - ""
   resources:
   - services/status
   verbs:
   - get
-  - patch
-  - update
-- apiGroups:
-  - apps
-  resources:
-  - deployments/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - multicluster.veccsolutions.io
   verbs:
@@ -71,7 +43,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: orchestrator
+  name: operator
   namespace: mcingress-operator
 rules:
 - apiGroups:

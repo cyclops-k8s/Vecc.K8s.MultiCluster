@@ -1,4 +1,5 @@
 ﻿using k8s.Models;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NewRelic.Api.Agent;
 using System.Net;
@@ -51,7 +52,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _gslbManager = gslbManager;
             _lifetime.ApplicationStopping.Register(OnApplicationStopping);
             _shutdownCancellationTokenSource = new CancellationTokenSource();
-            _shutdownEvent = new ManualResetEvent(false);
+            _shutdownEvent = new ManualResetEvent(true);
             _shutdownCancellationToken = _shutdownCancellationTokenSource.Token;
             _synchronizeLocalClusterHolder = new AutoResetEvent(true);
         }
@@ -75,14 +76,14 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 V1Gslb[]? gslbs = null;
 
                 Dictionary<string, IList<V1Ingress>>? ingressHosts = null;
-                var myHosts = Array.Empty<string>();
+                var myHosts = Array.Empty<Models.Core.Host>();
                 _logger.LogTrace("Initiating namespace getter");
                 var namespaces = await _namespaceManager.GetNamsepacesAsync();
                 _logger.LogTrace("Got the namespaces");
 
                 _logger.LogTrace("Getting ingresses, services, endpoints and gslbs");
                 await Task.WhenAll(
-                    Task.Run(async () => myHosts = await _cache.GetHostnamesAsync(_multiClusterOptions.Value.ClusterIdentifier)),
+                    Task.Run(async () => myHosts = (await _cache.GetHostsAsync(_multiClusterOptions.Value.ClusterIdentifier) ?? Array.Empty<Models.Core.Host>())),
                     Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync(namespaces)),
                     Task.Run(async () => services = await _serviceManager.GetServicesAsync(namespaces)),
                     Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync(namespaces)),
@@ -134,8 +135,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     await _cache.SetEndpointsCountAsync(endpoint.Namespace(), endpoint.Name(), endpoint.Subsets?.Count() ?? 0);
                 }
                 _logger.LogDebug("Done tracking services");
-
-                
 
                 foreach (var ingressHost in ingressHosts)
                 {
@@ -191,7 +190,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             }
 
                             var gslbServices = validServiceHosts.Where(s => gslb.Value.Any(g => g.Metadata.NamespaceProperty == s.Metadata.NamespaceProperty && g.ObjectReference.Name == s.Metadata.Name)).ToArray();
-                            if (gslbServices.Count() == 0)
+                            if (gslbServices.Length == 0)
                             {
                                 _logger.LogWarning("GSLB hostname {hostname} has no valid service, skipping. Expected to find valid services: {@validServices}", gslb.Key, gslb.Value.Select(x => x.Metadata.NamespaceProperty + "/" + x.ObjectReference.Name));
                                 continue;
@@ -255,24 +254,28 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                 }
 
+                var hostnameCache = ipAddresses.Select(x => new Models.Core.Host
+                {
+                    Hostname = x.Key,
+                    HostIPs = x.Value.ToArray()
+                }).ToArray();
+
+                await _cache.SetClusterCacheAsync(localClusterIdentifier, hostnameCache);
+
+                // send host changes to peers
                 foreach (var host in ipAddresses)
                 {
-                    _logger.LogTrace("Host information: {@host}", host);
-                    if (await _cache.SetHostIPsAsync(host.Key, localClusterIdentifier, host.Value.ToArray()))
-                    {
-                        _logger.LogInformation("Host information changed for {host}", host.Key);
-                        await SendHostUpdatesAsync(host.Key, host.Value.ToArray());
-                    }
+                    await SendHostUpdatesAsync(host.Key, host.Value.ToArray());
                 }
 
+                // remove old hosts from peers
                 foreach (var host in myHosts)
                 {
-                    _logger.LogDebug("Checking if {host} is removed.", host);
-                    if (!ipAddresses.ContainsKey(host))
+                    _logger.LogDebug("Checking if {host} is removed.", host.Hostname);
+                    if (!ipAddresses.ContainsKey(host.Hostname))
                     {
-                        _logger.LogInformation("Removing old host {host}", host);
-                        await _cache.SetHostIPsAsync(host, localClusterIdentifier, Array.Empty<HostIP>());
-                        await SendHostUpdatesAsync(host, Array.Empty<HostIP>());
+                        _logger.LogInformation("Removing old host {host}", host.Hostname);
+                        await SendHostUpdatesAsync(host.Hostname, Array.Empty<HostIP>());
                     }
                 }
 
@@ -341,31 +344,18 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         continue;
                     }
 
-                    var currentHosts = await _cache.GetHostsAsync(peer.Identifier);
-                    if (currentHosts != null)
-                    {
-                        _logger.LogTrace("We got hosts from the cache for {clusteridentifier}", peer.Identifier);
-                        var hostsToRemove = currentHosts.Where(h => !hosts.Any(x => x.Hostname == h.Hostname));
-                        _logger.LogTrace("Removing clustered hosts {@hosts}", hostsToRemove);
-                        foreach (var host in hostsToRemove)
+                    await _cache.SetClusterCacheAsync(peer.Identifier, hosts.Select(h =>
+                        new Models.Core.Host
                         {
-                            _logger.LogInformation("Removing stale cluster host {clusteridentifier}/{hostname}", peer.Identifier, host.Hostname);
-                            await _cache.RemoveClusterHostnameAsync(peer.Identifier, host.Hostname);
-                        }
-                    }
-
-                    foreach (var host in hosts)
-                    {
-                        _logger.LogTrace("Setting host {host}", host.Hostname);
-                        var hostIps = host.HostIPs.Select(i => new HostIP
-                        {
-                            IPAddress = i.IPAddress,
-                            Priority = i.Priority,
-                            Weight = i.Weight,
-                            ClusterIdentifier = peer.Identifier
-                        }).ToArray();
-                        await _cache.SetHostIPsAsync(host.Hostname, peer.Identifier, hostIps);
-                    }
+                            Hostname = h.Hostname,
+                            HostIPs = h.HostIPs.Select(ip => new HostIP
+                            {
+                                IPAddress = ip.IPAddress,
+                                Priority = ip.Priority,
+                                Weight = ip.Weight,
+                                ClusterIdentifier = peer.Identifier
+                            }).ToArray()
+                        }).ToArray());
                 }
                 catch (Exception exception)
                 {
@@ -377,6 +367,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task WatchClusterHeartbeatsAsync()
         {
+            _shutdownEvent.Reset();
+
             while (!_shutdownCancellationToken.IsCancellationRequested)
             {
                 try
@@ -401,27 +393,25 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     var clusterIdentifiers = await _cache.GetClusterIdentifiersAsync();
                     var timeout = _dateTimeProvider.UtcNow.AddSeconds(-_multiClusterOptions.Value.HeartbeatTimeout);
+                    _logger.LogInformation("Pruncing clusters that haven't checked in since {timeout}", timeout);
 
                     foreach (var clusterIdentifier in clusterIdentifiers)
                     {
                         var clusterHeartbeat = await _cache.GetClusterHeartbeatTimeAsync(clusterIdentifier);
+                        _logger.LogInformation("Checking cluster heartbeat for identifier {clusterIdentifier} with last heartbeat of {clusterHeartbeat}", clusterIdentifier, clusterHeartbeat);
 
                         if (clusterHeartbeat == null)
                         {
                             _logger.LogWarning("Cluster heartbeat not set for identifier {clusterIdentifier}", clusterIdentifier);
-                            continue;
                         }
-
-                        if (clusterHeartbeat < timeout)
+                        else if (clusterHeartbeat < timeout)
                         {
-                            var clusterHosts = await _cache.GetHostnamesAsync(clusterIdentifier);
-                            _logger.LogWarning("Cluster {@clusterIdentifier} timeout is expired, last heartbeat was at {@heartbeat}", clusterIdentifier, clusterHeartbeat);
-
-                            foreach (var hostname in clusterHosts)
-                            {
-                                _logger.LogWarning("Removing cluster hostname {@clusterIdentifier}/{@hostname} due to expired timeout", clusterIdentifier, hostname);
-                                await _cache.RemoveClusterHostnameAsync(clusterIdentifier, hostname);
-                            }
+                            _logger.LogWarning("Cluster heartbeat is stale for identifier {clusterIdentifier}", clusterIdentifier);
+                            await _cache.RemoveClusterCacheAsync(clusterIdentifier);
+                        }
+                        else
+                        {
+                            _logger.LogTrace("Cluster heartbeat is valid for identifier {clusterIdentifier}", clusterIdentifier);
                         }
                     }
                 }

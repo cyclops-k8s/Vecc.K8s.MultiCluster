@@ -11,4 +11,7 @@ data:
   Authentication__ApiKeys__0__Key: W26VCNAgvtUa5B38iNmFLPUa3hoUYY3L152qJPyJOeQ7UVu0G+XSDL1+lq6zNqnJ8HgVpgJoQulb9KRX690UGQ==
   Peers__0__Key: c648c376-059e-4947-8e7a-6d7528c5c85c
   ConnectionStrings__Redis: redis.mcingress-operator.svc.cluster.local,abortConnect=false,configCheckSeconds=5,connectRetry=1000,connectTimeout=5000,defaultDatabase=0,keepAlive=5,password=,resolveDns=false,syncTimeout=5000,ssl=false
+  HeartbeatCheckInterval: "1"
+  HeartbeatTimeout: "5"
+  HeartbeatSetInterval: "1"
   # Serilog__MinimumLevel__Default: Information

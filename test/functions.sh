@@ -51,9 +51,40 @@ wait_for_resource() {
     done
 
     set_sete "$ESTATE"
+
     return 0
 }
 
+wait_for_resource_missing() {
+    RESOURCE=$1
+    SELECTOR=$2
+    TIMEOUT=${3:-30}
+    STARTTIME=$(date +%s)
+    ESTATE=$-; ESTATE=$(get_sete "$ESTATE")
+
+    set +e
+
+    echo "Waiting for $RESOURCE with selector $SELECTOR for up to $TIMEOUT seconds to be $WAITFOR"
+    LASTEXITCODE=1
+
+    while [ $LASTEXITCODE != 0 ]
+    do
+        kubectl get "$RESOURCE" --selector="$SELECTOR" 2>&1 | grep -c "No resources" 1> /dev/null 2> /dev/null
+        LASTEXITCODE=$?
+        if [ $LASTEXITCODE != 0 ]
+        then
+            # check to see if we timed out
+            NOW=$(date +%s)
+            (( (NOW-STARTTIME) > TIMEOUT )) && echo "Timeout expired" && set_sete "$ESTATE" && return 1
+            echo "Timeout not expired, waiting for another second."
+            sleep 1
+        fi
+    done
+
+    set_sete "$ESTATE"
+
+    return 0
+}
 # usage:
 #   set_namespace <namespacename>
 #

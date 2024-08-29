@@ -1,26 +1,26 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: multicluster-orchestrator
+  name: multicluster-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: multicluster-orchestrator
+  name: multicluster-operator
 subjects:
 - kind: ServiceAccount
-  name: orchestrator
+  name: operator
   namespace: mcingress-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: orchestrator
+  name: operator
   namespace: mcingress-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: orchestrator
+  name: operator
 subjects:
 - kind: ServiceAccount
-  name: orchestrator
+  name: operator
 ---

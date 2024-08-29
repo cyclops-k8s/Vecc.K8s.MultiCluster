@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Vecc.K8s.MultiCluster.Api.Models.Api;
 using Vecc.K8s.MultiCluster.Api.Services;
@@ -60,7 +59,15 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     }).ToArray();
                 }
 
-                await _cache.SetHostIPsAsync(model.Hostname, clusterIdentifier, hostIPs);
+                var cluster = await _cache.GetHostsAsync(clusterIdentifier);
+                var hosts = cluster?.Where(x => x.Hostname != model.Hostname).ToList() ?? new List<Models.Core.Host>();
+                hosts.Add(new Models.Core.Host
+                {
+                    Hostname = model.Hostname,
+                    HostIPs = hostIPs
+                });
+                await _cache.SetClusterCacheAsync(clusterIdentifier, hosts.ToArray());
+
                 return NoContent();
             }
             catch (Exception exception)

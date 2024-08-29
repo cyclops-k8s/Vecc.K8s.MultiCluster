@@ -2,17 +2,19 @@ using Destructurama;
 using k8s.Models;
 using KubeOps.KubernetesClient;
 using KubeOps.Operator;
-using KubeOps.Transpiler;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using System.Reflection;
 using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Controllers;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
 using Vecc.K8s.MultiCluster.Api.Services.Authentication;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
+const string OperatorFlag = "--operator";
+const string OrchestratorFlag = "--orchestrator";
+const string DnsServerFlag = "--dns-server";
+const string FrontEndFlag = "--front-end";
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.logging.json")
@@ -54,31 +56,51 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<SwaggerOperationFilter>();
 });
 
-if (args.Any(arg => arg == "--orchestrator"))
+if (args.Contains(OperatorFlag))
 {
+    builder.Services.AddSingleton<OperatorLeader>();
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.Name = "operator";
         operatorSettings.EnableLeaderElection = true;
     })
         .AddController<K8sChangedController, V1Ingress>()
         .AddController<K8sChangedController, V1Service>()
         .AddController<K8sChangedController, V1Endpoints>();
 }
-else if (args.Any(arg => arg == "--dns-server"))
+else if (args.Contains(OrchestratorFlag))
 {
-    builder.Services.AddKubernetesOperator((c) => { c.Namespace = options.Namespace; })
+    builder.Services.AddSingleton<OrchestratorLeader>();
+    builder.Services.AddKubernetesOperator((operatorSettings) =>
+    {
+        operatorSettings.Name = "orchestrator";
+        operatorSettings.Namespace = options.Namespace;
+        operatorSettings.EnableLeaderElection = true;
+    })
+        .AddController<K8sClusterCacheController, V1ClusterCache>();
+}
+else if (args.Contains(DnsServerFlag))
+{
+    builder.Services.AddKubernetesOperator((operatorSettings) =>
+    {
+        operatorSettings.Name = "dnsserver";
+        operatorSettings.Namespace = options.Namespace;
+    })
         .AddController<K8sHostnameCacheController, V1HostnameCache>();
 
     builder.Services.AddSingleton<IKubernetesClient, KubernetesClient>();
 }
-else if (args.Any(arg => arg == "--front-end"))
+else if (args.Contains(FrontEndFlag))
 {
     builder.Services.AddSingleton<IKubernetesClient, KubernetesClient>();
+}
+else
+{
+    throw new Exception($"Expected one of {OperatorFlag}, {OrchestratorFlag}, {DnsServerFlag} or {FrontEndFlag}");
 }
 
 
 builder.Services.AddSingleton<LeaderStatus>();
-builder.Services.AddSingleton<LeaderStateChanged>();
 builder.Services.AddSingleton<DefaultDnsResolver>();
 builder.Services.AddSingleton<IGslbManager, DefaultGslbManager>();
 builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
@@ -92,7 +114,6 @@ builder.Services.AddSingleton<IRandom, DefaultRandom>();
 builder.Services.AddSingleton<IDnsServer, DnsServer>();
 builder.Services.AddSingleton<Vecc.Dns.ILogger, DefaultDnsLogging>();
 builder.Services.AddSingleton<IDnsResolver>(sp => sp.GetRequiredService<DefaultDnsResolver>());
-builder.Services.AddSingleton<LeaderStateChanged>();
 builder.Services.AddSingleton<KubernetesQueue>();
 builder.Services.AddSingleton<IQueue>((s) => s.GetRequiredService<KubernetesQueue>());
 
@@ -131,22 +152,23 @@ logger.LogInformation("Configured Options {@options} {@dnsServerOptions}", optio
 
 var processTasks = new List<Task>();
 
-//watches cluster events and keeps the local cluster config in sync and sends updates to other nodes
-//also keeps track of remote clusters and whether they are up or not
-if (args.Contains("--orchestrator"))
+// watches the cluster caches and updates the host cache, also expires old cluster caches
+if (args.Contains(OperatorFlag))
 {
-    logger.LogInformation("Running the orchestrator");
+    logger.LogInformation("Running the operator");
 
     var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
 
-    processTasks.Add(Task.Run(() =>
+    processTasks.Add(Task.Run(async () =>
     {
-        logger.LogInformation("Starting the operator");
-        var leaderStateChanged = app.Services.GetRequiredService<LeaderStateChanged>();
-
-        return app.RunAsync()
-            .ContinueWith(_ => logger.LogInformation("Operator stopped"));
-    }));
+        logger.LogInformation("Starting the operator leader watcher");
+        var leaderStateChanged = app.Services.GetRequiredService<OperatorLeader>();
+        while (true)
+        {
+            await Task.Yield();
+            await Task.Delay(1000);
+        };
+    }).ContinueWith(_ => logger.LogInformation("Operator leader watcher stopped")));
 
     processTasks.Add(Task.Run(() =>
     {
@@ -159,13 +181,44 @@ if (args.Contains("--orchestrator"))
 
     processTasks.Add(Task.Run(() =>
     {
+        logger.LogInformation("Running API Server for health checks");
+        return app.RunAsync().ContinueWith(_ => logger.LogInformation("API Server stopped"));
+    }));
+}
+
+//watches cluster events and keeps the local cluster config in sync and sends updates to other nodes
+else if (args.Contains(OrchestratorFlag))
+{
+    logger.LogInformation("Running the orchestrator");
+
+    var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
+
+    processTasks.Add(Task.Run(() =>
+    {
         logger.LogInformation("Starting cluster heartbeat watcher");
         return hostnameSynchronizer.WatchClusterHeartbeatsAsync().ContinueWith(_ => logger.LogInformation("Cluster heartbeat watcher stopped"));
+    }));
+
+    processTasks.Add(Task.Run(async () =>
+    {
+        logger.LogInformation("Starting the orchestrator leader watcher");
+        var leaderStateChanged = app.Services.GetRequiredService<OrchestratorLeader>();
+        while (true)
+        {
+            await Task.Yield();
+            await Task.Delay(1000);
+        }
+    }).ContinueWith(_ => logger.LogInformation("Orchestrator leader watcher stopped")));
+
+    processTasks.Add(Task.Run(() =>
+    {
+        logger.LogInformation("Running API Server for health checks");
+        return app.RunAsync().ContinueWith(_ => logger.LogInformation("API Server stopped"));
     }));
 }
 
 //starts the dns server to respond to dns queries for the respective hosts
-else if (args.Contains("--dns-server"))
+else if (args.Contains(DnsServerFlag))
 {
     logger.LogInformation("Running the dns server");
     var dnsHost = app.Services.GetRequiredService<IDnsHost>();
@@ -189,7 +242,7 @@ else if (args.Contains("--dns-server"))
 }
 
 //starts the api server
-else if (args.Contains("--front-end"))
+else if (args.Contains(FrontEndFlag))
 {
     processTasks.Add(Task.Run(() =>
     {
@@ -200,6 +253,6 @@ else if (args.Contains("--front-end"))
 
 logger.LogInformation("Waiting on process tasks");
 
-await Task.WhenAll(processTasks);
+await Task.WhenAny(processTasks);
 
 logger.LogInformation("Terminated");

@@ -149,6 +149,76 @@ kind: Deployment
 metadata:
   labels:
     app: operator
+    component: orchestrator
+  name: operator-operator
+  namespace: mcingress-operator
+spec:
+  replicas: 1
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: operator
+      component: operator
+  template:
+    metadata:
+      labels:
+        app: operator
+        component: operator
+    spec:
+      serviceAccountName: operator
+      containers:
+      - name: operator
+        args:
+        - --operator
+        env:
+        - name: KESTREL__ENDPOINTS__HTTP__URL
+          value: http://0.0.0.0:5001
+        - name: Namespace
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        envFrom:
+        - configMapRef:
+            name: mcingress
+        image: localhost:5001/multicluster:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /Healthz/Liveness
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        ports:
+        - containerPort: 5001
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /Healthz/Ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /var/run/secrets/tokens
+          name: token
+      volumes:
+      - name: token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: operator
     component: api-server
   name: operator-api-server
   namespace: mcingress-operator

@@ -3,10 +3,9 @@ using NewRelic.Api.Agent;
 
 namespace Vecc.K8s.MultiCluster.Api.Services
 {
-    public class LeaderStateChanged : IDisposable
+    public abstract class Leader<TLeader> : IDisposable
     {
-        private readonly ILogger<LeaderStateChanged> _logger;
-        private readonly IHostnameSynchronizer _hostnameSynchronizer;
+        private readonly ILogger<TLeader> _logger;
         private readonly IHostApplicationLifetime _applicationLifetime;
         private readonly LeaderElector _leaderElector;
         private readonly LeaderStatus _leaderStatus;
@@ -14,14 +13,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         private readonly ManualResetEventSlim _leaderStateChangeEvent;
         private bool _disposed;
 
-        public LeaderStateChanged(ILogger<LeaderStateChanged> logger,
-            IHostnameSynchronizer hostnameSynchronizer,
+        public Leader(ILogger<TLeader> logger,
             IHostApplicationLifetime applicationLifetime,
             LeaderElector leaderElector,
             LeaderStatus leaderStatus)
         {
             _logger = logger;
-            _hostnameSynchronizer = hostnameSynchronizer;
             _applicationLifetime = applicationLifetime;
             _leaderElector = leaderElector;
             _leaderStatus = leaderStatus;
@@ -88,7 +85,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services
                         _logger.LogInformation("I'm the new leader");
 
                         _leaderStatus.IsLeader = true;
-                        await OnLeaderElected();
+                        await OnLeaderElectedAsync();
                     }
                     catch (Exception exception)
                     {
@@ -115,11 +112,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services
             _leaderStateChangeEvent.Set();
         }
 
-        [Transaction]
-        private async Task OnLeaderElected()
-        {
-            await _hostnameSynchronizer.SynchronizeLocalClusterAsync();
-            await _hostnameSynchronizer.SynchronizeRemoteClustersAsync();
-        }
+        protected abstract Task OnLeaderElectedAsync();
     }
 }
