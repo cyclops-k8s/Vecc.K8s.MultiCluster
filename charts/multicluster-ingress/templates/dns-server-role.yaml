@@ -1,0 +1,19 @@
+{{- if and .Values.dnsServer.enabled .Values.rbac.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dns-server
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - multicluster.veccsolutions.io
+  verbs:
+  - '*'
+  resources:
+  - hostnamecaches
+{{- end }}

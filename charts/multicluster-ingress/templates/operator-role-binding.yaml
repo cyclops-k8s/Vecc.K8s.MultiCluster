@@ -1,0 +1,27 @@
+{{- if and .Values.operator.enabled .Values.rbac.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: operator
+subjects:
+- kind: ServiceAccount
+  name: "{{ .Values.operator.serviceAccount.name }}"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: multicluster-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: multicluster-operator
+subjects:
+- kind: ServiceAccount
+  name: "{{ .Values.operator.serviceAccount.name }}"
+  namespace: "{{ .Release.Namespace }}"
+{{- end }}

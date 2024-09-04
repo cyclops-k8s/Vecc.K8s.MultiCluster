@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcingress
+data:
+  ClusterIdentifier: "{{ .Values.config.clusterIdentifier }}"
+  DnsServer__ListenTCPPort: "{{ .Values.config.listenTCPPort }}"
+  DnsServer__ListenUDPPort: "{{ .Values.config.listenUDPPort }}"
+  DNSServerResponsibleEmailAddress: "{{ .Values.config.responsibleEmailAddress }}"
+
+  {{- range $index, $nameserver := .Values.config.nameservers }}
+  DnsServer__NameServers__{{ $index }}: {{ $nameserver }}
+  {{- end }}
+  DNSHostname: "{{ .Values.config.dnsHostname }}"
+  DefaultRecordTTL: "{{ .Values.config.defaultRecordTTL }}"
+  DNSServerResponsibleEmailAddress: "{{ .Values.config.responsibleEmailAddress }}"
+
+  {{- range $index, $remote := .Values.config.apiKeys }}
+  Authentication__ApiKeys__{{ $index}}__Identifier: {{ $remote.Identifier }}
+  Authentication__ApiKeys__{{ $index}}__Key: {{ $remote.Key }}
+  {{- end }}
+
+  {{- range $index, $peer := .Values.config.peers }}
+  Peers__{{ $index }}__Identifier: {{ $peer.Identifier }}
+  Peers__{{ $index }}__Key: {{ $peer.Key }}
+  Peers__{{ $index }}__Url: {{ $peer.Url }}
+  {{- end }}
+
+  HeartbeatCheckInterval: "{{ .Values.config.heartbeatCheckInterval }}"
+  HeartbeatTimeout: "{{ .Values.config.heartbeatTimeout }}"
+  HeartbeatSetInterval: "{{ .Values.config.heartbeatSetInterval }}"
+  Serilog__MinimumLevel__Default: "{{ .Values.config.logLevel }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcingress-appsettings
+data:
+  appsettings: |
+    {
+      "AllowedHosts": "*",
+      "DnsServer": {
+        "ListenTCPPort": 0,
+        "ListenUDPPort": 0
+      },
+      "Authentication": {
+        "ApiKeys": []
+      },
+      "ClusterIdentifier": "",
+      "ClusterSalt": "",
+      "DefaultRecordTTL": 5,
+      "DNSHostname": "",
+      "DNSServerResponsibleEmailAddress": "",
+      "HeartbeatCheckInterval": 0,
+      "HeartbeatSetInterval": 0,
+      "HeartbeatTimeout": 0,
+      "NameserverNames": {},
+      "Peers": []
+    }
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcingress
+type: Opaque
+data:
+  {{- if (lookup "v1" "Secret" .Release.Namespace "mcingress").data }}
+  ClusterSalt: {{ (lookup "v1" "Secret" .Release.Namespace "mcingress").data.ClusterSalt }}
+  {{ else }}
+  ClusterSalt: {{ randAscii 64 | b64enc | b64enc }}
+  {{ end }}
+
+  {{- range $index, $remote := .Values.config.apiKeys }}
+  Authentication__ApiKeys__{{ $index}}__Key: {{ $remote.Key | b64enc }}
+  {{- end }}
+
+  {{- range $index, $peer := .Values.config.peers }}
+  Peers__{{ $index }}__Key: {{ $peer.Key | b64enc }}
+  {{- end }}

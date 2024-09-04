@@ -1,0 +1,26 @@
+{{- if and .Values.dnsServer.enabled .Values.dnsServer.service.enabled}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ include "multiclusterIngress.name" . | trunc 40 }}-dns-server"
+  labels:
+    {{- with .Values.dnsServer.podLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.dnsServer.service.type }}
+  ports:
+  - port: 53
+    targetPort: dns-tcp
+    protocol: TCP
+    name: dns-tcp
+  - port: 53
+    targetPort: dns-udp
+    protocol: UDP
+    name: dns-udp
+  selector:
+    {{- include "multiclusterIngress.selectorLabels" . | nindent 4 }}
+    {{- with .Values.dnsServer.podLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

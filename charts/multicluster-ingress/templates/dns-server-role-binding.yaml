@@ -1,0 +1,13 @@
+{{- if and .Values.dnsServer.enabled .Values.rbac.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dns-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dns-server
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.dnsServer.serviceAccount.name }}
+{{- end }}

@@ -1,0 +1,106 @@
+{{- if .Values.operator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ include "multiclusterIngress.name" . | trunc 40 }}-operator"
+  labels:
+    {{- with .Values.operator.podLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- include "multiclusterIngress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.operator.replicas }}
+  selector:
+    matchLabels:
+      {{- with .Values.operator.podLabels }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- include "multiclusterIngress.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- with .Values.operator.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "multiclusterIngress.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Values.operator.serviceAccount.name }}
+      automountServiceAccountToken: true
+      securityContext:
+        {{- toYaml .Values.operator.podSecurityContext | nindent 8 }}
+      containers:
+      - name: operator
+        args:
+        - --operator
+        envFrom:
+        - configMapRef:
+            name: mcingress
+        - secretRef:
+            name: mcingress
+        securityContext:
+          {{- toYaml .Values.operator.securityContext | nindent 10 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /Healthz/Liveness
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        readinessProbe:
+          httpGet:
+            path: /Healthz/Ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          {{- toYaml .Values.operator.resources | nindent 10 }}
+        volumeMounts:
+        - mountPath: /app/appsettings.json
+          subPath: appsettings.json
+          name: appconfig
+        {{ with .Values.apiServer.volumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+      - name: appconfig
+        configMap:
+          name: mcingress-appsettings
+          items:
+          - key: appsettings
+            path: appsettings.json
+      {{ with .Values.operator.volumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+      {{- with .Values.operator.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+      {{- with .Values.operator.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.operator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+{{- end }}

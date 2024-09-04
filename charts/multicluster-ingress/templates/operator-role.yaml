@@ -1,0 +1,61 @@
+{{- if and .Values.operator.enabled .Values.rbac.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: operator
+  namespace: mcingress-operator
+rules:
+- apiGroups:
+  - multicluster.veccsolutions.io
+  verbs:
+  - '*'
+  resources:
+  - clustercaches
+  - hostnamecaches
+  - resourcecaches
+  - servicecaches
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multicluster-operator
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.k8s.io
+  - ""
+  resources:
+  - ingresses
+  - services
+  - endpoints
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - get
+- apiGroups:
+  - multicluster.veccsolutions.io
+  verbs:
+  - '*'
+  resources:
+  - gslbs
+---
+{{- end }}

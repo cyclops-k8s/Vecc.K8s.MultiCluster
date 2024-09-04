@@ -1,0 +1,112 @@
+{{- if .Values.dnsServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ include "multiclusterIngress.name" . | trunc 40 }}-dns-server"
+  labels:
+    {{- with .Values.dnsServer.podLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- include "multiclusterIngress.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.dnsServer.replicas }}
+  selector:
+    matchLabels:
+    {{- with .Values.dnsServer.podLabels }}
+    {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- include "multiclusterIngress.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- with .Values.dnsServer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "multiclusterIngress.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Values.dnsServer.serviceAccount.name }}
+      automountServiceAccountToken: true
+      securityContext:
+        {{- toYaml .Values.dnsServer.podSecurityContext | nindent 8 }}
+      containers:
+      - name: dns-server
+        args:
+        - --dns-server
+        envFrom:
+        - configMapRef:
+            name: mcingress
+        - secretRef:
+            name: mcingress
+        securityContext:
+          {{- toYaml .Values.dnsServer.securityContext | nindent 10 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: http
+        - containerPort: {{ .Values.config.listenUDPPort }}
+          protocol: UDP
+          name: dns-dns
+        - containerPort: {{ .Values.config.listenTCPPort }}
+          protocol: TCP
+          name: dns-tcp
+        livenessProbe:
+          httpGet:
+            path: /Healthz/Liveness
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+        readinessProbe:
+          httpGet:
+            path: /Healthz/Ready
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          {{- toYaml .Values.dnsServer.resources | nindent 10 }}
+        volumeMounts:
+        - mountPath: /app/appsettings.json
+          subPath: appsettings.json
+          name: appconfig
+        {{ with .Values.apiServer.volumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+      - name: appconfig
+        configMap:
+          name: mcingress-appsettings
+          items:
+          - key: appsettings
+            path: appsettings.json
+      {{ with .Values.dnsServer.volumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+      {{- with .Values.dnsServer.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+
+      {{- with .Values.dnsServer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.dnsServer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+{{- end }}
