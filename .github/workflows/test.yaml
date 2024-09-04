@@ -15,6 +15,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
     
-#     - name: Run tests.sh
-#       run: ./test.sh
-#       working-directory: test
+    - name: Run tests.sh
+      run: ./test.sh
+      working-directory: test

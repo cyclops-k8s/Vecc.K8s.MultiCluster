@@ -26,14 +26,14 @@ jobs:
       uses: gittools/actions/gitversion/execute@v3.0.0
       id: gitversion
 
-    # - name: Create release
-    #   run: |
-    #     set -e
-    #     gh release create "${{ steps.gitversion.outputs.fullSemVer }}" -t "${{ steps.gitversion.outputs.fullSemVer }}" --generate-notes
-    #     git push origin --tags
-    #   env:
-    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #     INPUT_TAG: ${{ steps.gitversion.outputs.tag }}
+    - name: Create release
+      run: |
+        set -e
+        gh release create "${{ steps.gitversion.outputs.fullSemVer }}" -t "${{ steps.gitversion.outputs.fullSemVer }}" --generate-notes
+        git push origin --tags
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        INPUT_TAG: ${{ steps.gitversion.outputs.tag }}
 
     - name: Log in to Azure
       uses: azure/login@v1
@@ -81,6 +81,6 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: false
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
