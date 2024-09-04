@@ -12,9 +12,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
     - name: Checkout
       uses: actions/checkout@v4
       with:
@@ -30,7 +27,10 @@ jobs:
       id: gitversion
 
     # - name: Create release
-    #   run: gh release create "${{ steps.gitversion.outputs.fullSemVer }}" -t "${{ steps.gitversion.outputs.fullSemVer }}" --generate-notes 
+    #   run: |
+    #     set -e
+    #     gh release create "${{ steps.gitversion.outputs.fullSemVer }}" -t "${{ steps.gitversion.outputs.fullSemVer }}" --generate-notes
+    #     git push origin --tags
     #   env:
     #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     #     INPUT_TAG: ${{ steps.gitversion.outputs.tag }}
@@ -70,17 +70,17 @@ jobs:
         # generate Docker tags based on the following events/attributes
         tags: |
           type=semver,pattern={{raw}},value=${{ steps.gitversion.outputs.fullSemVer }}
-          ${{ github.ref == 'refs/heads/main' && format('type=semver,pattern={{{{major}}}}.{{{{minor}}}},value={0}', steps.gitversion.outputs.fullSemVer) }}
-          ${{ github.ref == 'refs/heads/main' && format('type=semver,pattern={{{{major}}}},value={0}', steps.gitversion.outputs.fullSemVer) }}
+          type=semver,pattern={{major}}.{{minor}},value=${{steps.gitversion.outputs.fullSemVer}},enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+          type=semver,pattern={{major}},value=${{steps.gitversion.outputs.fullSemVer}},enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
           type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
     - name: Write out tags
       run: |
-        echo "${{ toJson(steps.meta.outputs.tags)}}"
-    # - name: Build Docker image
-    #   run: |
-    #     docker build -t quay.io/edward_cooke/vecc.k8s.multiclusteringress:latest \
-    #                  -t quay.io/edward_cooke/vecc.k8s.multiclusteringress:${{ steps.gitversion.outputs.fullSemVer }} .
-    #   env:
-    #     DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-    #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        echo "${{ toJson(steps.meta.outputs) }}"
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
