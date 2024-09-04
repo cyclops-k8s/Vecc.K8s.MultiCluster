@@ -74,9 +74,6 @@ jobs:
           type=semver,pattern={{major}},value=${{steps.gitversion.outputs.fullSemVer}},enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
           type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
-    - name: Write out tags
-      run: |
-        echo "${{ toJson(steps.meta.outputs) }}"
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
