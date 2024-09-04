@@ -59,25 +59,24 @@ jobs:
         registry: quay.io
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ env.DOCKER_PASSWORD }}
-    
-    - name: Test output tags
+ 
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        # list of Docker images to use as base name for tags
+        images: |
+          quay.io/edward_cooke/vecc.k8s.multiclusteringress
+        # generate Docker tags based on the following events/attributes
+        tags: |
+          type=semver,pattern={{raw}},value=${{ steps.gitversion.outputs.fullSemVer }}
+          ${{ github.ref == 'refs/heads/main' && format('type=semver,pattern={{{{major}}}}.{{{{minor}}}},value={0}', steps.gitversion.outputs.fullSemVer) }}
+          ${{ github.ref == 'refs/heads/main' && format('type=semver,pattern={{{{major}}}},value={0}', steps.gitversion.outputs.fullSemVer) }}
+          type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+
+    - name: Write out tags
       run: |
-        echo "${{ steps.gitversion.outputs.fullSemVer }}"
-        echo "${{ github.ref == 'refs/heads/main' && format('type=semver,pattern={{{{major}}}}.{{{{minor}}}},value={0}', steps.gitversion.outputs.fullSemVer) }}"
-
-    # - name: Docker meta
-    #   id: meta
-    #   uses: docker/metadata-action@v5
-    #   with:
-    #     # list of Docker images to use as base name for tags
-    #     images: |
-    #       quay.io/edward_cooke/vecc.k8s.multiclusteringress
-    #     # generate Docker tags based on the following events/attributes
-    #     tags: |
-    #       type=semver,pattern={{raw}},value=${{ steps.gitversion.outputs.fullSemVer }}
-    #       ${{ github.ref == 'refs/heads/main' && 'type=semver,pattern={{major}}.{{minor},value=${{ steps.gitversion.outputs.fullSemVer }}
-    #       type=semver,pattern={{major}},value=${{ steps.gitversion.outputs.fullSemVer }}
-
+        echo "${{ toJson(steps.meta.outputs.tags)}}"
     # - name: Build Docker image
     #   run: |
     #     docker build -t quay.io/edward_cooke/vecc.k8s.multiclusteringress:latest \
