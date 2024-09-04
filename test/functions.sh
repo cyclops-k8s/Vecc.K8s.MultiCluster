@@ -256,11 +256,13 @@ spinner_wait() {
         SPINNER=("${G}⣷${NOCOLOR}" "${G}⣯${NOCOLOR}" "${G}⣟${NOCOLOR}" "${G}⡿${NOCOLOR}" "${B}⢿${NOCOLOR}" "${B}⣻${NOCOLOR}" "${B}⣽${NOCOLOR}" "${B}⣾${NOCOLOR}")
         POS=0
 
+        [ "$IS_CI" == "1" ] && echo -e "$TEXT"
+
         while (kill -0 $PID 1> /dev/null 2> /dev/null)
         do
             (( POS++ ))
             [ $POS == 8 ] && POS=0
-            echo -en "\r${SPINNER[$POS]} $TEXT"
+            [ "$IS_CI" != "1" ] && echo -en "\r${SPINNER[$POS]} $TEXT"
             sleep .1
         done
         wait $PID

@@ -18,3 +18,9 @@ jobs:
     - name: Run tests.sh
       run: ./test.sh
       working-directory: test
+      env:
+        IS_CI: "1"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Test Results
+        path: test/results-*.tgz
