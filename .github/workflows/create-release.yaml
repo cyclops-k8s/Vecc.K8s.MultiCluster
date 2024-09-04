@@ -44,8 +44,8 @@ jobs:
 
     - name: Get quay.io credentials
       run: |
-        USERNAME=$(az keyvault secret show --name quay-username --vault-name my-vault --query value -o tsv)
-        PASSWORD=$(az keyvault secret show --name quay-password --vault-name my-vault --query value -o tsv)
+        USERNAME=$(az keyvault secret show --name quay-username --vault-name "${{ secets.AZURE_KEYVAULT_NAME }}" --query value -o tsv)
+        PASSWORD=$(az keyvault secret show --name quay-password --vault-name "${{ secets.AZURE_KEYVAULT_NAME }}" --query value -o tsv)
 
         echo "DOCKER_USERNAME=$USERNAME" >> $GITHUB_ENV
         echo "DOCKER_PASSWORD=$PASSWORD" >> $GITHUB_ENV
