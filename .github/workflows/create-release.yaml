@@ -63,7 +63,7 @@ jobs:
     - name: Test output tags
       run: |
         echo "${{ steps.gitversion.outputs.fullSemVer }}"
-        echo "${{ github.ref == 'refs/heads/main' && ('type=semver,pattern={{major}}.{{minor}},value=' + steps.gitversion.outputs.fullSemVer) }}"
+        echo "${{ github.ref == 'refs/heads/main' && format('type=semver,pattern={{{{major}}}}.{{{{minor}}}},value={0}', steps.gitversion.outputs.fullSemVer) }}"
 
     # - name: Docker meta
     #   id: meta
