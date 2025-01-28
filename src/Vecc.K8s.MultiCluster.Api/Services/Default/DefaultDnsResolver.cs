@@ -69,6 +69,30 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             result.Header.AnswerCount = (ushort)result.Answers.Count;
+
+            foreach (var additionalRecord in result.AdditionalRecords)
+            {
+                //we'll only support opt records for now, maybe we'll need to support more later
+                if (additionalRecord.Data is Opt opt)
+                {
+                    result.AdditionalRecords.Add(
+                        new ResourceRecord
+                        {
+                            Name = additionalRecord.Name,
+                            Data = new Opt()
+                            {
+                                Class = opt.Class,
+                                DNSSecSupported = false, // we don't support dnssec.
+                                RCode = opt.RCode,
+                                RData = opt.RData,
+                                RequestorsPayloadSize = opt.RequestorsPayloadSize,
+                                Version = opt.Version,
+                                Z = opt.Z
+                            }
+                        });
+                }
+            }
+
             result.Header.AdditionalRecordCount = (ushort)result.AdditionalRecords.Count;
 
             return Task.FromResult<Packet?>(result);
