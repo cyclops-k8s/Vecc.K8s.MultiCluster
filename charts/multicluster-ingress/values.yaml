@@ -223,6 +223,8 @@ config:
   #   Key: abcd
   #   Url: http://remote-1-api-server.domain.tld
 
+  # How frequently to refresh the cluster to maintain consistency if an event is not caught in the cluster
+  periodicRefreshInterval: 300
 rbac:
   enabled: true
 

@@ -13,6 +13,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly IKubernetesClient _kubernetesClient;
         private readonly IOptions<MultiClusterOptions> _options;
         private readonly IDateTimeProvider _dateTimeProvider;
+        private readonly AutoResetEvent _synchronizeCacheHolder = new (true);
 
         public KubernetesApiCache(ILogger<KubernetesApiCache> logger, IKubernetesClient kubernetesClient, IOptions<MultiClusterOptions> options, IDateTimeProvider dateTimeProvider)
         {
@@ -208,7 +209,13 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         public async Task SynchronizeCachesAsync()
         {
-            _logger.LogInformation("Syncronizing caches");
+            using var scope = _logger.BeginScope(new { CacheSynchronizeId = Guid.NewGuid() });
+
+            _logger.LogInformation("Beginning to synchronize cache");
+            _synchronizeCacheHolder.WaitOne();
+            _logger.LogInformation("Waiting a second");
+            await Task.Delay(1000);
+            _logger.LogInformation("Synchronizing caches");
 
             _logger.LogInformation("Getting clusters");
             var clusters = await _kubernetesClient.ListAsync<V1ClusterCache>(_options.Value.Namespace);

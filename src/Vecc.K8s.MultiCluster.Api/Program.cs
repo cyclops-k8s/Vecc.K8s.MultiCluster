@@ -164,7 +164,9 @@ if (args.Contains(OperatorFlag))
     {
         logger.LogInformation("Starting the operator leader watcher");
         var leaderStateChanged = app.Services.GetRequiredService<OperatorLeader>();
-        while (true)
+        var lifecycle = app.Lifetime;
+
+        while (!lifecycle.ApplicationStopping.IsCancellationRequested)
         {
             await Task.Yield();
             await Task.Delay(1000);
@@ -180,6 +182,44 @@ if (args.Contains(OperatorFlag))
         });
     }));
 
+    if (options.PerioidRefreshInterval <= 0)
+    {
+        logger.LogInformation("Perioid refresh interval is {interval} which is <= 0, disabling periodic refresher.", options.PerioidRefreshInterval);
+    }
+    else
+    {
+        processTasks.Add(Task.Run(async () =>
+        {
+            logger.LogInformation("Starting the periodic refresher");
+            var lifecycle = app.Lifetime;
+            var leaderStatus = app.Services.GetRequiredService<LeaderStatus>();
+
+            while (!lifecycle.ApplicationStopping.IsCancellationRequested)
+            {
+                await Task.Yield();
+                await Task.Delay(options.PerioidRefreshInterval * 1000);
+                using var scope = logger.BeginScope(new { PeriodicRefreshId = Guid.NewGuid() });
+
+                if (leaderStatus.IsLeader)
+                {
+                    logger.LogInformation("Initiating periodic refresh");
+                    try
+                    {
+                        await hostnameSynchronizer.SynchronizeLocalClusterAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Error during periodic refresh");
+                    }
+                }
+                else
+                {
+                    logger.LogTrace("Not the leader, skipping periodic refresh");
+                }
+            };
+        }).ContinueWith(_ => logger.LogInformation("Periodic refresher stopped")));
+    }
+
     processTasks.Add(Task.Run(() =>
     {
         logger.LogInformation("Running API Server for health checks");
@@ -192,10 +232,9 @@ else if (args.Contains(OrchestratorFlag))
 {
     logger.LogInformation("Running the orchestrator");
 
-    var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
-
     processTasks.Add(Task.Run(() =>
     {
+        var hostnameSynchronizer = app.Services.GetRequiredService<IHostnameSynchronizer>();
         logger.LogInformation("Starting cluster heartbeat watcher");
         return hostnameSynchronizer.WatchClusterHeartbeatsAsync().ContinueWith(_ => logger.LogInformation("Cluster heartbeat watcher stopped"));
     }));
@@ -210,6 +249,46 @@ else if (args.Contains(OrchestratorFlag))
             await Task.Delay(1000);
         }
     }).ContinueWith(_ => logger.LogInformation("Orchestrator leader watcher stopped")));
+
+
+    if (options.PerioidRefreshInterval <= 0)
+    {
+        logger.LogInformation("Perioid refresh interval is {interval} which is <= 0, disabling periodic refresher.", options.PerioidRefreshInterval);
+    }
+    else
+    {
+        processTasks.Add(Task.Run(async () =>
+        {
+            logger.LogInformation("Starting the periodic refresher");
+            var lifecycle = app.Lifetime;
+            var leaderStatus = app.Services.GetRequiredService<LeaderStatus>();
+            var cache = app.Services.GetRequiredService<ICache>();
+
+            while (!lifecycle.ApplicationStopping.IsCancellationRequested)
+            {
+                await Task.Yield();
+                await Task.Delay(options.PerioidRefreshInterval * 1000);
+                using var scope = logger.BeginScope(new { PeriodicRefreshId = Guid.NewGuid() });
+
+                if (leaderStatus.IsLeader)
+                {
+                    logger.LogInformation("Initiating periodic refresh");
+                    try
+                    {
+                        await cache.SynchronizeCachesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Error during periodic refresh");
+                    }
+                }
+                else
+                {
+                    logger.LogTrace("Not the leader, skipping periodic refresh");
+                }
+            };
+        }).ContinueWith(_ => logger.LogInformation("Periodic refresher stopped")));
+    }
 
     processTasks.Add(Task.Run(() =>
     {

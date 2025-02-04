@@ -30,6 +30,8 @@ data:
   HeartbeatTimeout: "{{ .Values.config.heartbeatTimeout }}"
   HeartbeatSetInterval: "{{ .Values.config.heartbeatSetInterval }}"
   Serilog__MinimumLevel__Default: "{{ .Values.config.logLevel }}"
+
+  PerioidRefreshInterval: {{ .Values.config.periodicRefreshInterval }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -55,5 +57,6 @@ data:
       "HeartbeatSetInterval": 0,
       "HeartbeatTimeout": 0,
       "NameserverNames": {},
-      "Peers": []
+      "Peers": [],
+      "PerioidRefreshInterval": 0
     }
