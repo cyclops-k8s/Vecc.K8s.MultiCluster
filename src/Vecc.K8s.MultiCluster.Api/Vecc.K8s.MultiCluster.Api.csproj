@@ -23,7 +23,7 @@
         </PackageReference>
         <PackageReference Include="KubeOps.Operator.Web" Version="9.2.0" />
         <PackageReference Include="KubeOps.Transpiler" Version="9.2.0" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.12" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.12" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
         <PackageReference Include="NewRelic.Agent" Version="10.35.0" />
         <PackageReference Include="NewRelic.Agent.Api" Version="10.35.0" />
