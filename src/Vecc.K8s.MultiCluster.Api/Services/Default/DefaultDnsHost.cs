@@ -15,10 +15,30 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _shutdownCancellationToken = lifetime.ApplicationStopping;
         }
 
-        public Task StartAsync()
+        public async Task StartAsync()
         {
-            _logger.LogInformation("Starting dns server");
-            return _dnsServer.ExecuteAsync(_shutdownCancellationToken);
+            while (!_shutdownCancellationToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Starting dns server");
+
+                try
+                {
+                    await _dnsServer.ExecuteAsync(_shutdownCancellationToken);
+
+                    if (!_shutdownCancellationToken.IsCancellationRequested)
+                    {
+                        _logger.LogError("Unexpected shutdown of the dns server, restarting.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (!_shutdownCancellationToken.IsCancellationRequested)
+                    {
+                        _logger.LogError(ex, "Crash in the dns server, restarting.");
+                    }
+                }
+            }
+            _logger.LogInformation("Shutdown of dns server complete");
         }
     }
 }

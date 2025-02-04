@@ -61,8 +61,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task SynchronizeLocalClusterAsync()
         {
             _synchronizeLocalClusterHolder.WaitOne();
+            using var scope = _logger.BeginScope(new { SyncId = Guid.NewGuid() });
             try
             {
+                _logger.LogInformation("Waiting a second for the cluster to settle.");
+                await Task.Delay(1000); //wait one second to allow resources to fully complete.
                 _logger.LogInformation("Synchronizing local cluster");
                 var ipAddresses = new Dictionary<string, List<HostIP>>();
                 var localClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier;

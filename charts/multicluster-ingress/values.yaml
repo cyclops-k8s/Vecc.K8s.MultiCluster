@@ -60,7 +60,10 @@ dnsServer:
     name: dns-server
     annotations: {}
   service:
+    enabled: true
     type: LoadBalancer
+    # Set the loadBalancerIP to the IP you want for your DNS server, leave empty to make it automatically set by the cluster.
+    loadBalancerIP: ''
   podSecurityContext: {}
     # fsGroup: 2000
   securityContext:
@@ -70,12 +73,12 @@ dnsServer:
     readOnlyRootFilesystem: true
   resources:
     limits:
-      # 300m is recommended minimum for startup, while running, 100m should be plenty
-      cpu: 300m
-      memory: 128Mi
+      # 500m is recommended minimum for startup, while running, 100m should be plenty
+      cpu: 500m
+      memory: 256Mi
     requests:
       cpu: 100m
-      memory: 64Mi
+      memory: 128Mi
   volumeMounts: []
   nodeSelector: {}
   affinity: {}
@@ -145,6 +148,17 @@ orchestrator:
 
 config:
   ################################################################################################
+  ### Secret configuration for the cluster
+  # If you want to create your secret yourself, for example, via a SealedSecret
+  # set this to false.
+  # The secret will need the following values
+  # * ClusterSalt - 64 bytes of random data not base64 encoded
+  # * Authentication__ApiKeys__##__Key - The hash of the key that remote peers use to talk to this instance
+  #                                      of the multicluster ingress controller
+  # * Peers__{{ $index }}__Key - The keys to talk to the remote peers
+  createSecret: true
+
+  ################################################################################################
   ### Local cluster configuration
   # Name of the local cluster cache object
   clusterIdentifier: local
@@ -199,18 +213,20 @@ config:
   # it includes a base 64 encoded hashe of a key and a identifier used by the local cluster
   # that can communicate with this cluster
   apiKeys: []
-
-  # W26VCNAgvtUa5B38iNmFLPUa3hoUYY3L152qJPyJOeQ7UVu0G+XSDL1+lq6zNqnJ8HgVpgJoQulb9KRX690UGQ==
+  # If you are creating the secret yourself, don't add the `Key` field.
   # - Identifier: remote-1
   #   Key: W26VCNAgvtUa5B38iNmFLPUa3hoUYY3L152qJPyJOeQ7UVu0G+XSDL1+lq6zNqnJ8HgVpgJoQulb9KRX690UGQ==
 
-  # this is the list of peers that we will communicate with and send our updates to
+  # This is the list of peers that we will communicate with and send our updates to
   # it includes the api key, identifier and the url to send the updates to
+  # If you are creating the secret yourself, don't add the `Key` field.
   peers: []
   # - Identifier: remote-1
   #   Key: abcd
   #   Url: http://remote-1-api-server.domain.tld
 
+  # How frequently to refresh the cluster to maintain consistency if an event is not caught in the cluster
+  periodicRefreshInterval: 300
 rbac:
   enabled: true
 

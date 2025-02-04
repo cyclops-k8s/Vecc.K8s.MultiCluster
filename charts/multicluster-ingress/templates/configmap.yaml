@@ -30,6 +30,8 @@ data:
   HeartbeatTimeout: "{{ .Values.config.heartbeatTimeout }}"
   HeartbeatSetInterval: "{{ .Values.config.heartbeatSetInterval }}"
   Serilog__MinimumLevel__Default: "{{ .Values.config.logLevel }}"
+
+  PerioidRefreshInterval: {{ .Values.config.periodicRefreshInterval }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -55,26 +57,6 @@ data:
       "HeartbeatSetInterval": 0,
       "HeartbeatTimeout": 0,
       "NameserverNames": {},
-      "Peers": []
+      "Peers": [],
+      "PerioidRefreshInterval": 0
     }
-
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mcingress
-type: Opaque
-data:
-  {{- if (lookup "v1" "Secret" .Release.Namespace "mcingress").data }}
-  ClusterSalt: {{ (lookup "v1" "Secret" .Release.Namespace "mcingress").data.ClusterSalt }}
-  {{ else }}
-  ClusterSalt: {{ randAscii 64 | b64enc | b64enc }}
-  {{ end }}
-
-  {{- range $index, $remote := .Values.config.apiKeys }}
-  Authentication__ApiKeys__{{ $index}}__Key: {{ $remote.Key | b64enc }}
-  {{- end }}
-
-  {{- range $index, $peer := .Values.config.peers }}
-  Peers__{{ $index }}__Key: {{ $peer.Key | b64enc }}
-  {{- end }}
