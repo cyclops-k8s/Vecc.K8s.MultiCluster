@@ -60,6 +60,7 @@ dnsServer:
     name: dns-server
     annotations: {}
   service:
+    enabled: true
     type: LoadBalancer
   podSecurityContext: {}
     # fsGroup: 2000
@@ -70,12 +71,12 @@ dnsServer:
     readOnlyRootFilesystem: true
   resources:
     limits:
-      # 300m is recommended minimum for startup, while running, 100m should be plenty
-      cpu: 300m
-      memory: 128Mi
+      # 500m is recommended minimum for startup, while running, 100m should be plenty
+      cpu: 500m
+      memory: 256Mi
     requests:
       cpu: 100m
-      memory: 64Mi
+      memory: 128Mi
   volumeMounts: []
   nodeSelector: {}
   affinity: {}
