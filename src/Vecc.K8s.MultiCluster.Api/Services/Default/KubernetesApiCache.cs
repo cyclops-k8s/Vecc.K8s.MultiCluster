@@ -217,69 +217,80 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             await Task.Delay(1000);
             _logger.LogInformation("Synchronizing caches");
 
-            _logger.LogInformation("Getting clusters");
-            var clusters = await _kubernetesClient.ListAsync<V1ClusterCache>(_options.Value.Namespace);
-            _logger.LogDebug("Got {count} clusters", clusters.Count);
-
-            var hosts = new Dictionary<string, List<HostIP>>();
-
-            _logger.LogInformation("Combining host entries");
-            foreach (var cluster in clusters)
+            try
             {
-                foreach (var hostname in cluster.Hostnames)
+                _logger.LogInformation("Getting clusters");
+                var clusters = await _kubernetesClient.ListAsync<V1ClusterCache>(_options.Value.Namespace);
+                _logger.LogDebug("Got {count} clusters", clusters.Count);
+
+                var hosts = new Dictionary<string, List<HostIP>>();
+
+                _logger.LogInformation("Combining host entries");
+                foreach (var cluster in clusters)
                 {
-                    if (!hosts.ContainsKey(hostname.Hostname))
+                    foreach (var hostname in cluster.Hostnames)
                     {
-                        hosts[hostname.Hostname] = new List<HostIP>();
+                        if (!hosts.ContainsKey(hostname.Hostname))
+                        {
+                            hosts[hostname.Hostname] = new List<HostIP>();
+                        }
+                        hosts[hostname.Hostname].AddRange(hostname.HostIPs.Select(x => x.ToCore()));
                     }
-                    hosts[hostname.Hostname].AddRange(hostname.HostIPs.Select(x => x.ToCore()));
+                }
+                _logger.LogDebug("Got {count} host entries", hosts.Count);
+
+                _logger.LogInformation("Getting current hostnames");
+                var hostcaches = await _kubernetesClient.ListAsync<V1HostnameCache>(_options.Value.Namespace);
+                _logger.LogDebug("Hostnames found: {count}", hostcaches.Count);
+                _logger.LogTrace("Hostnames: {@hostnames}", hostcaches.Select(x => new { Hostname = x.GetLabel("hostname"), IPs = x.Addresses }));
+
+                _logger.LogInformation("Setting hostnames ip addresses");
+                foreach (var host in hosts)
+                {
+                    var hostcache = await GetOrCreateHostnameCache(host.Key);
+                    var outOfSync = false;
+                    if (hostcache!.Addresses.Length != host.Value.Count)
+                    {
+                        _logger.LogDebug("Address length mismatch for {@hostname}", host.Key);
+                        outOfSync = true;
+                    }
+                    else if (hostcache.Addresses.Any(src => !host.Value.Any(dst => dst.Equals(src.ToCore()))))
+                    {
+                        _logger.LogDebug("Address value mismatch for {@hostname}", host.Key);
+                        outOfSync = true;
+                    }
+                    else
+                    {
+                        _logger.LogDebug("No changes found for {@hostname}", host.Key);
+                    }
+                    //check for address changes
+                    if (outOfSync && host.Value.Count != 0)
+                    {
+                        _logger.LogTrace("Setting host cache for {@hostname} from {@oldAddresses} to {@addresses}", host.Key, hostcache.Addresses, host.Value);
+                        hostcache!.Addresses = host.Value.Select(V1HostnameCache.HostIPCache.FromCore).ToArray();
+                        await _kubernetesClient.SaveAsync(hostcache);
+                        _logger.LogTrace("Done saving host cache entry");
+                    }
+                }
+
+                _logger.LogInformation("Removing old hosts");
+                foreach (var hostcache in hostcaches)
+                {
+                    var hostname = hostcache.GetLabel("hostname");
+                    if (!hosts.ContainsKey(hostname) || hosts[hostname].Count == 0)
+                    {
+                        _logger.LogDebug("Removing host cache entry for {@hostname}", hostname);
+                        await _kubernetesClient.DeleteAsync(hostcache);
+                    }
                 }
             }
-            _logger.LogDebug("Got {count} host entries", hosts.Count);
-
-            _logger.LogInformation("Getting current hostnames");
-            var hostcaches = await _kubernetesClient.ListAsync<V1HostnameCache>(_options.Value.Namespace);
-            _logger.LogDebug("Hostnames found: {count}", hostcaches.Count);
-            _logger.LogTrace("Hostnames: {@hostnames}", hostcaches.Select(x => new { Hostname = x.GetLabel("hostname"), IPs = x.Addresses }));
-
-            _logger.LogInformation("Setting hostnames ip addresses");
-            foreach (var host in hosts)
+            catch(Exception ex)
             {
-                var hostcache = await GetOrCreateHostnameCache(host.Key);
-                var outOfSync = false;
-                if (hostcache!.Addresses.Length != host.Value.Count)
-                {
-                    _logger.LogDebug("Address length mismatch for {@hostname}", host.Key);
-                    outOfSync = true;
-                }
-                else if (hostcache.Addresses.Any(src => !host.Value.Any(dst => dst.Equals(src.ToCore()))))
-                {
-                    _logger.LogDebug("Address value mismatch for {@hostname}", host.Key);
-                    outOfSync = true;
-                }
-                else
-                {
-                    _logger.LogDebug("No changes found for {@hostname}", host.Key);
-                }
-                //check for address changes
-                if (outOfSync && host.Value.Count != 0)
-                {
-                    _logger.LogTrace("Setting host cache for {@hostname} from {@oldAddresses} to {@addresses}", host.Key, hostcache.Addresses, host.Value);
-                    hostcache!.Addresses = host.Value.Select(V1HostnameCache.HostIPCache.FromCore).ToArray();
-                    await _kubernetesClient.SaveAsync(hostcache);
-                    _logger.LogTrace("Done saving host cache entry");
-                }
+                _logger.LogError(ex, "Error synchronizing caches");
             }
-
-            _logger.LogInformation("Removing old hosts");
-            foreach (var hostcache in hostcaches)
+            finally
             {
-                var hostname = hostcache.GetLabel("hostname");
-                if (!hosts.ContainsKey(hostname) || hosts[hostname].Count == 0)
-                {
-                    _logger.LogDebug("Removing host cache entry for {@hostname}", hostname);
-                    await _kubernetesClient.DeleteAsync(hostcache);
-                }
+                _synchronizeCacheHolder.Set();
             }
 
             _logger.LogInformation("Done synchronizing caches");
