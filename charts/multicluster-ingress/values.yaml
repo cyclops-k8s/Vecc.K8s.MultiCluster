@@ -62,6 +62,8 @@ dnsServer:
   service:
     enabled: true
     type: LoadBalancer
+    # Set the loadBalancerIP to the IP you want for your DNS server, leave empty to make it automatically set by the cluster.
+    loadBalancerIP: ''
   podSecurityContext: {}
     # fsGroup: 2000
   securityContext:

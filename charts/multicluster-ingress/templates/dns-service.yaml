@@ -8,6 +8,9 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  {{- if ne .Values.dnsServer.service.loadBalancerIP "" }}
+  loadBalancerIP: {{ .Values.dnsServer.service.loadBalancerIP }}
+  {{- end }}
   type: {{ .Values.dnsServer.service.type }}
   ports:
   - port: 53
