@@ -1,3 +1,4 @@
+using ARSoft.Tools.Net.Dns;
 using Destructurama;
 using k8s.Models;
 using KubeOps.KubernetesClient;
@@ -5,7 +6,9 @@ using KubeOps.Operator;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Serilog;
-using Vecc.Dns.Server;
+using System.Net;
+
+//using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Controllers;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
@@ -20,6 +23,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.logging.json")
                       .AddEnvironmentVariables()
                       .AddCommandLine(args);
+
 
 builder.Services.Configure<DnsServerOptions>(builder.Configuration.GetSection("DnsServer"));
 builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuration.GetSection("Authentication"));
@@ -102,25 +106,29 @@ else
 
 
 builder.Services.AddSingleton<LeaderStatus>();
-builder.Services.AddSingleton<DefaultDnsResolver>();
+builder.Services.AddSingleton<Vecc.K8s.MultiCluster.Api.Services.IDnsResolver, DefaultDnsResolver>();
 builder.Services.AddSingleton<IGslbManager, DefaultGslbManager>();
 builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
 builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
 builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
 builder.Services.AddSingleton<IHostnameSynchronizer, DefaultHostnameSynchronizer>();
 builder.Services.AddSingleton<ICache, KubernetesApiCache>();
-builder.Services.AddSingleton<IDnsHost, DefaultDnsHost>();
 builder.Services.AddSingleton<IDateTimeProvider, DefaultDateTimeProvider>();
 builder.Services.AddSingleton<IRandom, DefaultRandom>();
-builder.Services.AddSingleton<IDnsServer, DnsServer>();
-builder.Services.AddSingleton<Vecc.Dns.ILogger, DefaultDnsLogging>();
-builder.Services.AddSingleton<IDnsResolver>(sp => sp.GetRequiredService<DefaultDnsResolver>());
+builder.Services.AddSingleton(sp =>
+{
+    var dnsOptions = sp.GetRequiredService<IOptions<DnsServerOptions>>().Value;
+    var udpTransport = new UdpServerTransport(new IPEndPoint(IPAddress.Any, dnsOptions.ListenUDPPort));
+    var tcpTransport = new TcpServerTransport(new IPEndPoint(IPAddress.Any, dnsOptions.ListenTCPPort));
+    var dnsServer = new DnsServer(udpTransport, tcpTransport);
+    return dnsServer;
+});
 builder.Services.AddSingleton<KubernetesQueue>();
 builder.Services.AddSingleton<IQueue>((s) => s.GetRequiredService<KubernetesQueue>());
 
 builder.Services.AddScoped<ApiAuthenticationHandler>();
 builder.Services.AddSingleton<ApiAuthenticationHasher>();
-builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
+//builder.Services.AddSingleton<DnsServerOptions>(sp => sp.GetRequiredService<IOptions<DnsServerOptions>>().Value);
 builder.Services.AddHttpClient();
 
 builder.Services.AddAuthentication(ApiAuthenticationHandlerOptions.DefaultScheme)
@@ -301,17 +309,42 @@ else if (args.Contains(OrchestratorFlag))
 else if (args.Contains(DnsServerFlag))
 {
     logger.LogInformation("Running the dns server");
-    var dnsHost = app.Services.GetRequiredService<IDnsHost>();
-    var dnsResolver = app.Services.GetRequiredService<DefaultDnsResolver>();
-    await dnsResolver.InitializeAsync();
+
     var queue = app.Services.GetRequiredService<IQueue>();
+    var dnsResolver = app.Services.GetRequiredService<Vecc.K8s.MultiCluster.Api.Services.IDnsResolver>();
 
-    queue.OnHostChangedAsync = dnsResolver.OnHostChangedAsync;
-
-    processTasks.Add(Task.Run(() =>
+    if (dnsResolver != null)
     {
+        queue.OnHostChangedAsync += dnsResolver.OnHostChangedAsync;
+    }
+
+    processTasks.Add(Task.Run(async () =>
+    {
+        using var scope = app.Services.CreateScope();
+        using var dnsServer = scope.ServiceProvider.GetRequiredService<DnsServer>();
+        var lifecycle = app.Services.GetRequiredService<IHostApplicationLifetime>();
+        await dnsResolver!.InitializeAsync();
+        dnsServer.QueryReceived += async (object sender, QueryReceivedEventArgs eventArgs) =>
+        {
+            var query = eventArgs.Query as DnsMessage;
+            if (query == null)
+            {
+                return;
+            }
+            var result = await dnsResolver.ResolveAsync(query);
+            eventArgs.Response = result;
+
+        };
         logger.LogInformation("Starting the dns server");
-        return dnsHost.StartAsync().ContinueWith(_ => logger.LogInformation("DNS Server stopped"));
+        dnsServer.Start();
+        while (true)
+        {
+            if (lifecycle.ApplicationStopping.IsCancellationRequested ||
+                lifecycle.ApplicationStopped.IsCancellationRequested)
+            {
+                break;
+            }
+        }
     }));
 
     processTasks.Add(Task.Run(() =>

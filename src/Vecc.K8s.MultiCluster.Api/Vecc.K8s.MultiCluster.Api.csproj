@@ -16,6 +16,7 @@
             <KubeOpsSkipInstaller>true</KubeOpsSkipInstaller>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="ARSoft.Tools.Net" Version="3.6.1" />
         <PackageReference Include="Destructurama.Attributed" Version="5.1.0" />
         <PackageReference Include="KubeOps.Generator" Version="9.2.0">
           <PrivateAssets>all</PrivateAssets>
@@ -32,8 +33,6 @@
         <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
         <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
-        <PackageReference Include="Vecc.Dns" Version="1.0.16" />
-        <PackageReference Include="Vecc.Dns.Server" Version="1.0.16" />
     </ItemGroup>
 
 </Project>
