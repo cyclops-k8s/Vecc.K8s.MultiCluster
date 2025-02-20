@@ -15,7 +15,6 @@ const string OperatorFlag = "--operator";
 const string OrchestratorFlag = "--orchestrator";
 const string DnsServerFlag = "--dns-server";
 const string FrontEndFlag = "--front-end";
-
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.logging.json")
                       .AddEnvironmentVariables()
