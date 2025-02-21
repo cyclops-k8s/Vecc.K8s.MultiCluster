@@ -4,7 +4,9 @@ using KubeOps.KubernetesClient;
 using KubeOps.Operator;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+using Scalar.AspNetCore;
 using Serilog;
+using System.Reflection;
 using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Controllers;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
@@ -52,6 +54,7 @@ builder.Services.AddSwaggerGen(options =>
         },
     };
     options.AddSecurityDefinition(ApiAuthenticationHandlerOptions.DefaultScheme, securityScheme);
+    options.IncludeXmlComments(typeof(Program).Assembly);
     options.OperationFilter<SwaggerOperationFilter>();
 });
 
@@ -138,7 +141,12 @@ var app = builder.Build();
 
 app.UseWhen(context => !context.Request.Path.StartsWithSegments("/Healthz"), appBuilder => appBuilder.UseSerilogRequestLogging());
 app.UseSwagger();
-app.UseSwaggerUI();
+//app.UseSwaggerUI();
+app.UseSwagger(options =>
+{
+    options.RouteTemplate = "/openapi/{documentName}.json";
+});
+app.MapScalarApiReference();
 
 app.UseRouting();
 app.UseAuthentication();

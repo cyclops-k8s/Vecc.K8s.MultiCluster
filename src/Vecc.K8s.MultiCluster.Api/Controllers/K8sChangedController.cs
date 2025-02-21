@@ -7,6 +7,9 @@ using Vecc.K8s.MultiCluster.Api.Services;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers
 {
+    /// <summary>
+    /// Inbound cluster operations
+    /// </summary>
     [EntityRbac(typeof(V1Ingress), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Endpoints), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
@@ -18,6 +21,12 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         private readonly IHostnameSynchronizer _synchronizer;
         private readonly IKubernetesClient _client;
 
+        /// <summary>
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="cache"></param>
+        /// <param name="synchronizer"></param>
+        /// <param name="client"></param>
         public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer, IKubernetesClient client)
         {
             _logger = logger;
@@ -26,42 +35,77 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             _client = client;
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="ingress"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Ingress {@namespace}/{@ingress} deleted", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="ingress"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Ingress {@namespace}/{@ingress} reconcile requested", ingress.Namespace(), ingress.Name());
             await SyncIngressIfRequired(ingress);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="service"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task DeletedAsync(V1Service service, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Service {@namespace}/{@service} deleted", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="service"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task ReconcileAsync(V1Service service, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Service {@namespace}/{@service} reconcile requested", service.Namespace(), service.Name());
             await SyncServiceIfRequiredAsync(service);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="endpoints"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task DeletedAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Endpoints {@namespace}/{@endpoints} deleted", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="endpoints"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task ReconcileAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Endpoints {@namespace}/{@endpoints} reconcile requested", endpoints.Namespace(), endpoints.Name());
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="entity"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task ReconcileAsync(V1Gslb entity, CancellationToken cancellationToken)
         {
             _logger.LogInformation("GSLB {@namespace}/{@name} reconcile requested", entity.Namespace(), entity.Name());
@@ -94,6 +138,11 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// </summary>
+        /// <param name="entity"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task DeletedAsync(V1Gslb entity, CancellationToken cancellationToken)
         {
             _logger.LogInformation("GSLB {@namespace}/{@name} delete requested", entity.Namespace(), entity.Name());

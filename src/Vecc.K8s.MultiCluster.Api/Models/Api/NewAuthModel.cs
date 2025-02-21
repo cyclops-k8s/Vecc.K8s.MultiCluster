@@ -1,9 +1,18 @@
 ﻿namespace Vecc.K8s.MultiCluster.Api.Models.Api
 {
+    /// <summary>
+    /// Authentication data to add to remote and local secrets and configmaps
+    /// </summary>
     public class NewAuthModel
     {
-        public string EnvironmentIdentifier { get; set; } = string.Empty;
-        public string EnvironmentHash { get; set; } = string.Empty;
-        public string Key { get; set; } = string.Empty;
+        /// <summary>
+        /// The configmap/secrets to add to the local cluster configuration
+        /// </summary>
+        public LocalAuthModel LocalAuthModel { get; set; } = new LocalAuthModel();
+
+        /// <summary>
+        /// The configmap/secrets to add to the remote cluster configuration
+        /// </summary>
+        public RemoteAuthModel RemoteAuthModel { get; set; } = new RemoteAuthModel();
     }
 }
