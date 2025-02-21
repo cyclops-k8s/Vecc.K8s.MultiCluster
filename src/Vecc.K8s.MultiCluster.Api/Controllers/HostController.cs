@@ -6,6 +6,9 @@ using Vecc.K8s.MultiCluster.Api.Services;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers
 {
+    /// <summary>
+    /// Host based operations happen here
+    /// </summary>
     [ApiController]
     [Authorize]
     [Route("[controller]")]
@@ -15,6 +18,12 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         private readonly ICache _cache;
         private readonly IOptions<MultiClusterOptions> _options;
 
+        /// <summary>
+        /// Host based operations constructor
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="cache"></param>
+        /// <param name="options"></param>
         public HostController(ILogger<HostController> logger, ICache cache, IOptions<MultiClusterOptions> options)
         {
             _logger = logger;
@@ -77,6 +86,10 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Get all hosts in this cluster
+        /// </summary>
+        /// <returns></returns>
         [HttpGet]
         [ProducesResponseType(typeof(HostModel[]), 200)]
         [ProducesResponseType(404)]

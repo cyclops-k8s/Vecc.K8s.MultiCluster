@@ -4,6 +4,9 @@ using Vecc.K8s.MultiCluster.Api.Services;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers
 {
+    /// <summary>
+    /// Remote cluster heartbeat operations
+    /// </summary>
     [ApiController]
     [Route("[controller]")]
     [Authorize]
@@ -13,6 +16,12 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         private readonly ICache _cache;
         private readonly IDateTimeProvider _dateTimeProvider;
 
+        /// <summary>
+        /// Remote cluster heartbeat constructor
+        /// </summary>
+        /// <param name="logger"></param>
+        /// <param name="cache"></param>
+        /// <param name="dateTimeProvider"></param>
         public HeartbeatController(ILogger<HeartbeatController> logger, ICache cache, IDateTimeProvider dateTimeProvider)
         {
             _logger = logger;
@@ -23,7 +32,6 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <summary>
         /// Updates the liveness check for the specified cluster identifier
         /// </summary>
-        /// <param name="clusterIdentifier">Cluster identifier to update the heartbeat for</param>
         /// <returns>Nothing</returns>
         [HttpPost]
         [ProducesResponseType(204)]

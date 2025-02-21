@@ -6,6 +6,9 @@ using Vecc.K8s.MultiCluster.Api.Services;
 
 namespace Vecc.K8s.MultiCluster.Api.Controllers
 {
+    /// <summary>
+    /// Health related operations happen here
+    /// </summary>
     [ApiController]
     [AllowAnonymous]
     [Route("[Controller]")]
@@ -16,12 +19,21 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         private static DateTime _lastUp;
         private static bool _ready;
 
+        /// <summary>
+        /// Health related operations happen here
+        /// </summary>
+        /// <param name="kubernetesClient"></param>
+        /// <param name="dateTimeProvider"></param>
         public HealthzController(IKubernetesClient kubernetesClient, IDateTimeProvider dateTimeProvider)
         {
             _kubernetesClient = kubernetesClient;
             _dateTimeProvider = dateTimeProvider;
         }
 
+        /// <summary>
+        /// Check if the pod is ready to accept requests
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("Ready")]
         public async Task<IActionResult> ReadyAsync()
         {
@@ -47,6 +59,10 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             return Ok(new { Status = "Kubernetes API returned something", Namespace = ns });
         }
 
+        /// <summary>
+        /// Check if the pod is alive
+        /// </summary>
+        /// <returns></returns>
         [HttpGet("Liveness")]
         public async Task<IActionResult> LivenessAsync()
         {

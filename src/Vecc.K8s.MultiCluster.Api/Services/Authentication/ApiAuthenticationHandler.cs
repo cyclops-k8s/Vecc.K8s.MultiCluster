@@ -53,7 +53,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             var apiKey = _options.CurrentValue.ApiKeys?.FirstOrDefault(x => x.Key == hash);
             if (apiKey == null)
             {
-                Logger.LogWarning("X-Api-Key not found");
+                Logger.LogWarning("X-Api-Key hash not found: {hash}", hash);
                 return AuthenticateResult.Fail("X-Api-Key not found");
             }
 
