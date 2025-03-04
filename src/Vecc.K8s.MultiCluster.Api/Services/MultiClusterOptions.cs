@@ -16,6 +16,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         public string DNSServerResponsibleEmailAddress { get; set; } = "null.vecck8smulticlusteringress.com";
         public string DNSHostname { get; set; } = "dns.vecck8smulticlusteringress.com";
         public string Namespace { get; set; } = Environment.GetEnvironmentVariable("POD_NAMESPACE") ?? new KubernetesClient().GetCurrentNamespace();
-        public int PerioidRefreshInterval { get; set; } = 60 * 5; //default to 5 minutes
+        public int PeriodicRefreshInterval { get; set; } = 60 * 5; //default to 5 minutes
     }
 }

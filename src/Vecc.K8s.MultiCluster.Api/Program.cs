@@ -189,9 +189,9 @@ if (args.Contains(OperatorFlag))
         });
     }));
 
-    if (options.PerioidRefreshInterval <= 0)
+    if (options.PeriodicRefreshInterval <= 0)
     {
-        logger.LogInformation("Perioid refresh interval is {interval} which is <= 0, disabling periodic refresher.", options.PerioidRefreshInterval);
+        logger.LogInformation("Perioid refresh interval is {interval} which is <= 0, disabling periodic refresher.", options.PeriodicRefreshInterval);
     }
     else
     {
@@ -204,7 +204,7 @@ if (args.Contains(OperatorFlag))
             while (!lifecycle.ApplicationStopping.IsCancellationRequested)
             {
                 await Task.Yield();
-                await Task.Delay(options.PerioidRefreshInterval * 1000);
+                await Task.Delay(options.PeriodicRefreshInterval * 1000);
                 using var scope = logger.BeginScope(new { PeriodicRefreshId = Guid.NewGuid() });
 
                 if (leaderStatus.IsLeader)
@@ -258,9 +258,9 @@ else if (args.Contains(OrchestratorFlag))
     }).ContinueWith(_ => logger.LogInformation("Orchestrator leader watcher stopped")));
 
 
-    if (options.PerioidRefreshInterval <= 0)
+    if (options.PeriodicRefreshInterval <= 0)
     {
-        logger.LogInformation("Perioid refresh interval is {interval} which is <= 0, disabling periodic refresher.", options.PerioidRefreshInterval);
+        logger.LogInformation("Perioid refresh interval is {interval} which is <= 0, disabling periodic refresher.", options.PeriodicRefreshInterval);
     }
     else
     {
@@ -274,7 +274,7 @@ else if (args.Contains(OrchestratorFlag))
             while (!lifecycle.ApplicationStopping.IsCancellationRequested)
             {
                 await Task.Yield();
-                await Task.Delay(options.PerioidRefreshInterval * 1000);
+                await Task.Delay(options.PeriodicRefreshInterval * 1000);
                 using var scope = logger.BeginScope(new { PeriodicRefreshId = Guid.NewGuid() });
 
                 if (leaderStatus.IsLeader)
