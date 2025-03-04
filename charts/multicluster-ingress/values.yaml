@@ -28,6 +28,7 @@ apiServer:
   service:
     type: ClusterIP
     port: 80
+    annotations:
   serviceAccount:
     name: api-server
     annotations: {}
@@ -64,6 +65,7 @@ dnsServer:
     type: LoadBalancer
     # Set the loadBalancerIP to the IP you want for your DNS server, leave empty to make it automatically set by the cluster.
     loadBalancerIP: ''
+    annotations:
   podSecurityContext: {}
     # fsGroup: 2000
   securityContext:

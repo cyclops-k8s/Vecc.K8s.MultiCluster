@@ -2,6 +2,10 @@
 apiVersion: v1
 kind: Service
 metadata:
+  {{- if .Values.dnsServer.service.annotations }}
+  annotations:
+    {{- toYaml .Values.dnsServer.service.annotations | nindent 4 }}
+  {{- end }}
   name: "{{ include "multiclusterIngress.name" . | trunc 40 }}-dns-server"
   labels:
     {{- with .Values.dnsServer.podLabels }}
