@@ -17,52 +17,40 @@ spec:
       openAPIV3Schema:
         properties:
           lastHeartbeat:
-            nullable: false
             type: string
           hostnames:
             items:
               properties:
                 hostname:
-                  nullable: false
                   type: string
                 hostIPs:
                   items:
                     properties:
                       ipAddress:
-                        nullable: false
                         type: string
                       priority:
                         format: int32
-                        nullable: false
                         type: integer
                       weight:
                         format: int32
-                        nullable: false
                         type: integer
                       clusterIdentifier:
-                        nullable: false
                         type: string
                     type: object
-                  nullable: false
                   type: array
               type: object
-            nullable: false
             type: array
           serviceEndpointCounts:
             items:
               properties:
                 namespace:
-                  nullable: false
                   type: string
                 service:
-                  nullable: false
                   type: string
                 count:
                   format: int32
-                  nullable: false
                   type: integer
               type: object
-            nullable: false
             type: array
         type: object
     served: true
@@ -88,17 +76,14 @@ spec:
         properties:
           objectReference:
             description: Reference to the ingress or service
-            nullable: false
             properties:
               name:
                 minLength: 1
-                nullable: false
                 type: string
               kind:
                 enum:
                 - Ingress
                 - Service
-                nullable: false
                 type: string
             required:
             - name
@@ -107,30 +92,23 @@ spec:
           hostnames:
             description: Hostnames to expose the ingress or service as
             items:
-              nullable: false
               type: string
-            nullable: false
             type: array
           ipOverrides:
             description: External IP to return instead of what is in the ingress or service
             items:
-              nullable: false
               type: string
             nullable: true
             type: array
           priority:
             description: Priority to assign this GSLB object. Highest priority is chosen first.
-            exclusiveMinimum: false
             format: int32
             minimum: 0.0
-            nullable: false
             type: integer
           weight:
             description: Weight to assign this GSLB object when doing round robin load balancing type. Defaults to 50. The calculation to determine the final weighting of all objects is (weight / sum of all weights) * 100.
-            exclusiveMinimum: false
             format: int32
             minimum: 0.0
-            nullable: false
             type: integer
         type: object
     served: true
@@ -157,21 +135,16 @@ spec:
             items:
               properties:
                 ipAddress:
-                  nullable: false
                   type: string
                 priority:
                   format: int32
-                  nullable: false
                   type: integer
                 weight:
                   format: int32
-                  nullable: false
                   type: integer
                 clusterIdentifier:
-                  nullable: false
                   type: string
               type: object
-            nullable: false
             type: array
         type: object
     served: true
@@ -195,7 +168,6 @@ spec:
       openAPIV3Schema:
         properties:
           currentResourceVersion:
-            nullable: false
             type: string
         type: object
     served: true
@@ -219,33 +191,24 @@ spec:
       openAPIV3Schema:
         properties:
           service:
-            nullable: false
             properties:
               apiVersion:
-                nullable: false
                 type: string
               fieldPath:
-                nullable: false
                 type: string
               kind:
-                nullable: false
                 type: string
               name:
-                nullable: false
                 type: string
               namespace:
-                nullable: false
                 type: string
               resourceVersion:
-                nullable: false
                 type: string
               uid:
-                nullable: false
                 type: string
             type: object
           endpointCount:
             format: int32
-            nullable: false
             type: integer
         type: object
     served: true
