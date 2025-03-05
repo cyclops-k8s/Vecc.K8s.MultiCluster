@@ -29,7 +29,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
         {
             if (Request.Path.StartsWithSegments("/swagger") ||
                 Request.Path.StartsWithSegments("/health") ||
-                Request.Path.StartsWithSegments("/healthz"))
+                Request.Path.StartsWithSegments("/healthz") ||
+                Request.Path.StartsWithSegments("/scalar") ||
+                Request.Path.StartsWithSegments("/coredns.dns.DnsService"))
             {
                 Logger.LogTrace("No auth route detected, {path}", Request.Path.ToString());
                 return AuthenticateResult.NoResult();

@@ -56,6 +56,13 @@ apiServer:
 
 dnsServer:
   enabled: true
+  coredns:
+    prometeheusMetricsEnabled: true
+    port: 1053
+    healthCheckPort: 8080
+    readinessPort: 8181
+    metricsPort: 9153
+  grpcPort: 1153
   replicas: 2
   serviceAccount:
     name: dns-server
