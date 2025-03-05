@@ -8,6 +8,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         public int HeartbeatTimeout { get; set; } = 30;
         public int HeartbeatCheckInterval { get; set; } = 1;
         public int HeartbeatSetInterval { get; set; } = 10;
+        public int ListenGrpcPort { get; set; } = 0;
+        public int ListenPort { get; set; } = 0;
         public PeerHosts[] Peers { get; set; } = Array.Empty<PeerHosts>();
         [Sensitive]
         public byte[] ClusterSalt { get; set; } = Array.Empty<byte>();

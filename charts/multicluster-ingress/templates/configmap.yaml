@@ -52,6 +52,8 @@ data:
       "HeartbeatCheckInterval": 0,
       "HeartbeatSetInterval": 0,
       "HeartbeatTimeout": 0,
+      "ListenPort": 0,
+      "ListenGrpcPort": 0,
       "NameserverNames": {},
       "Peers": [],
       "PeriodicRefreshInterval": 0

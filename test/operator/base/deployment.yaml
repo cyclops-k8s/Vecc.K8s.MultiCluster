@@ -25,8 +25,10 @@ spec:
         args:
         - --dns-server
         env:
-        - name: KESTREL__ENDPOINTS__HTTP__URL
-          value: http://0.0.0.0:5000
+        - name: ListenPort
+          value: "5000"
+        - name: ListenGrpcPort
+          value: "1153"
         - name: Namespace
           valueFrom:
             fieldRef:
@@ -45,12 +47,8 @@ spec:
         ports:
         - containerPort: 5000
           name: http
-        - containerPort: 1053
-          name: dns-tcp
-          protocol: TCP
-        - containerPort: 1053
-          name: dns-udp
-          protocol: UDP
+        - containerPort: 1153
+          name: grpc
         readinessProbe:
           httpGet:
             path: /Healthz/Ready
@@ -74,21 +72,21 @@ spec:
         command:
         - /coredns
         image: "{{ .Values.dnsServer.coredns.image }}"
-        imagePullPolicy: {{ .Values.dnsServer.coredns.imagePullPolicy }}
+        imagePullPolicy: Always
         ports:
-        - containerPort: {{ .Values.dnsServer.coredns.port }}
+        - containerPort: 1053
           protocol: TCP
           name: dns-tcp
-        - containerPort: {{ .Values.dnsServer.coredns.port }}
+        - containerPort: 1053
           protocol: UDP
           name: dns-udp
-        - containerPort: {{ .Values.dnsServer.coredns.healthCheckPort }}
+        - containerPort: 8080
           protocol: TCP
           name: health
-        - containerPort: {{ .Values.dnsServer.coredns.metricsPort }}
+        - containerPort: 9153
           protocol: TCP
           name: metrics
-        - containerPort: {{ .Values.dnsServer.coredns.readinessPort }}
+        - containerPort: 8181
           protocol: TCP
           name: readiness
         resources:
@@ -102,11 +100,13 @@ spec:
         - mountPath: /etc/coredns
           name: coredns-config
         livenessProbe:
-          httpGet: /health
-          port: health
+          httpGet:
+            path: /health
+            port: health
         readinessProbe:
-          httpGet: /ready
-          port: readiness
+          httpGet:
+            path: /ready
+            port: readiness
       volumes:
       - name: coredns-config
         configMap:

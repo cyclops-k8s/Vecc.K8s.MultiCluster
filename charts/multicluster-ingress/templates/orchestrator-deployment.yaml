@@ -37,6 +37,9 @@ spec:
       - name: orchestrator
         args:
         - --orchestrator
+        env:
+        - name: ListenPort
+          value: "{{ .Values.orchestrator.listenPort }}"
         envFrom:
         - configMapRef:
             name: mcingress

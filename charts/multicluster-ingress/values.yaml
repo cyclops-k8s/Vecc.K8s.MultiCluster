@@ -24,6 +24,7 @@ apiServer:
     #  - secretName: chart-example-tls
     #    hosts:
     #      - chart-example.local
+  listenPort: 8080
   replicas: 2
   service:
     type: ClusterIP
@@ -57,12 +58,15 @@ apiServer:
 dnsServer:
   enabled: true
   coredns:
+    image: "coredns/coredns:1.12.0"
+    imagePullPolicy: IfNotPresent
     prometeheusMetricsEnabled: true
     port: 1053
     healthCheckPort: 8080
     readinessPort: 8181
     metricsPort: 9153
   grpcPort: 1153
+  listenPort: 5000
   replicas: 2
   serviceAccount:
     name: dns-server
@@ -97,6 +101,7 @@ dnsServer:
 
 operator:
   enabled: true
+  listenPort: 8080
   replicas: 2
   serviceAccount:
     name: operator
@@ -127,6 +132,7 @@ operator:
 
 orchestrator:
   enabled: true
+  listenPort: 8080
   replicas: 2
   serviceAccount:
     name: orchestrator

@@ -52,7 +52,9 @@ spec:
         args:
         - --dns-server
         env:
-        - name: ASPNETCORE_HTTP_PORTS
+        - name: ListenPort
+          value: "{{ .Values.dnsServer.listenPort }}"
+        - name: ListenGrpcPort
           value: "{{ .Values.dnsServer.grpcPort }}"
         envFrom:
         - configMapRef:
@@ -65,8 +67,11 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: {{ .Values.dnsServer.grpcPort }}
-          protocol: GRPC
+          protocol: TCP
           name: grpc
+        - containerPort: {{ .Values.dnsServer.listenPort }}
+          protocol: TCP
+          name: http
         livenessProbe:
           httpGet:
             path: /Healthz/Liveness
@@ -85,7 +90,7 @@ spec:
         - mountPath: /app/appsettings.json
           subPath: appsettings.json
           name: appconfig
-        {{ with .Values.apiServer.volumeMounts }}
+        {{ with .Values.dnsServer.volumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       - name: coredns
@@ -117,6 +122,7 @@ spec:
         volumeMounts:
         - mountPath: /etc/coredns
           name: coredns-config
+          subPath: Corefile
         livenessProbe:
           httpGet: /health
           port: health

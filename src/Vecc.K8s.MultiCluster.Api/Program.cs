@@ -27,18 +27,25 @@ builder.Services.Configure<ApiAuthenticationHandlerOptions>(builder.Configuratio
 
 builder.Services.Configure<MultiClusterOptions>(builder.Configuration);
 var options = new MultiClusterOptions();
+builder.Configuration.Bind(options);
 
 //Enable http/2 only
 // .net core only allows one http protocol on http ports. GRPC requires http/2. So we force it.
 builder.WebHost.ConfigureKestrel(o =>
 {
-    o.ConfigureEndpointDefaults(lo =>
+    o.ListenAnyIP(options.ListenPort, (lo) =>
     {
-        lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+        lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
     });
-});
 
-builder.Configuration.Bind(options);
+    if (args.Contains(DnsServerFlag))
+    {
+        o.ListenAnyIP(options.ListenGrpcPort, (lo) =>
+        {
+            lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+        });
+    }
+});
 
 builder.Host.UseSerilog((context, configuration) =>
 {

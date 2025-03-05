@@ -6,7 +6,8 @@
       "launchBrowser": true,
       "launchUrl": "scalar",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ListenPort": "5140"
       },
       "applicationUrl": "http://localhost:5140"
     },
@@ -15,7 +16,8 @@
       "commandLineArgs": "--operator",
       "launchUrl": "scalar",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ListenPort": "5141"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5141"
@@ -25,7 +27,8 @@
       "commandLineArgs": "--orchestrator",
       "launchUrl": "scalar",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ListenPort": "5142"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5142"
@@ -35,7 +38,9 @@
       "commandLineArgs": "--dns-server",
       "launchUrl": "scalar",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ListenPort": "5143",
+        "ListenGrpcPort": "5144"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://127.0.0.1:5143"
