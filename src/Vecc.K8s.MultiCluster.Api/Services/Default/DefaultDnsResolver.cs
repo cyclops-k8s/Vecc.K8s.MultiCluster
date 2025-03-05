@@ -1,25 +1,23 @@
-﻿using Microsoft.Extensions.Options;
+﻿using DNS.Protocol;
+using DNS.Protocol.ResourceRecords;
+using Microsoft.Extensions.Options;
 using NewRelic.Api.Agent;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Xml.Linq;
-using Vecc.Dns;
-using Vecc.Dns.Parts;
-using Vecc.Dns.Parts.RecordData;
-using Vecc.Dns.Server;
 using Vecc.K8s.MultiCluster.Api.Models.Core;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
-    public class DefaultDnsResolver : IDnsResolver
+    public class DefaultDnsResolver
     {
-        private readonly ILogger<DefaultDnsHost> _logger;
+        private readonly ILogger<DefaultDnsResolver> _logger;
         private readonly IOptions<MultiClusterOptions> _options;
         private readonly IRandom _random;
         private readonly ICache _cache;
         private readonly ConcurrentDictionary<string, WeightedHostIp[]> _hosts;
 
-        public DefaultDnsResolver(ILogger<DefaultDnsHost> logger, IOptions<MultiClusterOptions> options, IRandom random, ICache cache)
+        public DefaultDnsResolver(ILogger<DefaultDnsResolver> logger, IOptions<MultiClusterOptions> options, IRandom random, ICache cache)
         {
             _logger = logger;
             _options = options;
@@ -31,47 +29,25 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public OnHostChangedAsyncDelegate OnHostChangedAsync => new OnHostChangedAsyncDelegate(RefreshHostInformationAsync);
 
         [Transaction]
-        public Task<Packet?> ResolveAsync(Packet incoming)
+        public Task<Response> ResolveAsync(Request incoming)
         {
-            var result = new Packet
-            {
-                Header = new Header
-                {
-                    AdditionalRecordCount = 0,
-                    Authenticated = false,
-                    AuthoritativeServer = false,
-                    CheckingDisabled = false,
-                    Id = incoming.Header.Id,
-                    OpCode = incoming.Header.OpCode,
-                    PacketType = PacketType.Response,
-                    QuestionCount = incoming.Header.QuestionCount,
-                    RecursionAvailable = false,
-                    RecursionDesired = incoming.Header.RecursionDesired,
-                    ResponseCode = ResponseCodes.NoError,
-                    Truncated = false
-                },
-                Questions = incoming.Questions
-            };
+            var result = Response.FromRequest(incoming);
 
             foreach (var question in incoming.Questions)
             {
                 var q = question.Name.ToString();
-                switch (question.QuestionType)
+                switch (question.Type)
                 {
-                    case ResourceRecordTypes.A:
-                        SetARecords(q, result);
+                    case RecordType.A:
+                        SetARecords(question.Name, result);
                         break;
-                    case ResourceRecordTypes.NS:
-                        SetNSRecords(q, result);
+                    case RecordType.NS:
+                        SetNSRecords(question.Name, result);
                         break;
                 }
-
             }
 
-            result.Header.AnswerCount = (ushort)result.Answers.Count;
-            result.Header.AdditionalRecordCount = (ushort)0;
-
-            return Task.FromResult<Packet?>(result);
+            return Task.FromResult(result);
         }
 
         [Transaction]
@@ -94,7 +70,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                 }
             }
-
         }
 
         [Transaction]
@@ -154,9 +129,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        private void SetARecords(string hostname, Packet packet)
+        private void SetARecords(Domain hostname, Response packet)
         {
-            if (_hosts.TryGetValue(hostname, out var host))
+            if (_hosts.TryGetValue(hostname.ToString(), out var host))
             {
                 //figure out the host ips here
                 var highestPriority = host.Min(h => h.Priority);
@@ -194,7 +169,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 var record = GetIPResourceRecord(hostname, chosenHostIP.IP.IPAddress);
                 if (record != null)
                 {
-                    packet.Answers.Add(record);
+                    packet.AnswerRecords.Add(record);
                 }
             }
             else
@@ -204,25 +179,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        private void SetNSRecords(string hostname, Packet packet)
+        private void SetNSRecords(Domain hostname, Response packet)
         {
-            IEnumerable<ResourceRecord>? answers = default;
-            IEnumerable<ResourceRecord>? additionalAnswers = default;
+            IEnumerable<IResourceRecord>? answers = default;
+            IEnumerable<IResourceRecord>? additionalAnswers = default;
 
-            if (_options.Value.NameserverNames.TryGetValue(hostname, out var names))
+            if (_options.Value.NameserverNames.TryGetValue(hostname.ToString(), out var names))
             {
-                var moreAnswers = new List<ResourceRecord>();
+                var moreAnswers = new List<IResourceRecord>();
 
-                answers = names.Select(name => new ResourceRecord
-                {
-                    Data = new NS
-                    {
-                        Class = Classes.Internet,
-                        Target = new Name { Value = name },
-                    },
-                    Name = new Name { Value = hostname },
-                    TTL = (uint)_options.Value.DefaultRecordTTL
-                });
+                answers = names.Select(name => new NameServerResourceRecord(hostname, new Domain(name), TimeSpan.FromSeconds(_options.Value.DefaultRecordTTL)));
 
                 foreach (var name in names)
                 {
@@ -233,7 +199,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         {
                             if (!ips.Contains(host.IP.IPAddress))
                             {
-                                var record = GetIPResourceRecord(name, host.IP.IPAddress);
+                                var record = GetIPResourceRecord(new Domain(name), host.IP.IPAddress);
                                 if (record != null)
                                 {
                                     moreAnswers.Add(record);
@@ -248,30 +214,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
             else
             {
-                var answer = new ResourceRecord
-                {
-                    Name = hostname,
-                    TTL = 0,
-                    Data = new Soa
-                    {
-                        Class = Classes.Internet,
-                        Expire = 3600000,
-                        Refresh = 86400,
-                        Retry = 7200,
-                        RName = new Name { Value = _options.Value.DNSHostname },
-                        Minimum = 172800,
-                        MName = new Name { Value = _options.Value.DNSServerResponsibleEmailAddress },
-                        Serial = 1
-                    }
-                };
-                answers = new[] { answer };
+                var answer = new StartOfAuthorityResourceRecord(
+                    hostname,
+                    new Domain(_options.Value.DNSHostname),
+                    new Domain(_options.Value.DNSServerResponsibleEmailAddress),
+                    ttl: TimeSpan.FromSeconds(_options.Value.DefaultRecordTTL));
+                answers = [answer];
             }
 
             if (answers != null)
             {
                 foreach (var answer in answers)
                 {
-                    packet.Answers.Add(answer);
+                    packet.AnswerRecords.Add(answer);
                 }
             }
 
@@ -285,28 +240,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        private ResourceRecord? GetIPResourceRecord(string hostname, string ip)
+        private BaseResourceRecord? GetIPResourceRecord(Domain hostname, string ip)
         {
             var ipAddress = IPAddress.Parse(ip);
 
-            //TODO: support ipv6 addresses here
-            if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-            {
-                var record = new ResourceRecord
-                {
-                    Data = new A
-                    {
-                        Class = Classes.Internet,
-                        IPAddress = ipAddress
-                    },
-                    Name = new Name { Value = hostname },
-                    TTL = (uint)_options.Value.DefaultRecordTTL,
-                };
+            var record = new IPAddressResourceRecord(
+                hostname,
+                ipAddress,
+                TimeSpan.FromSeconds(_options.Value.DefaultRecordTTL));
 
-                return record;
-            }
-
-            return null;
+            return record;
         }
 
         private struct WeightedHostIp

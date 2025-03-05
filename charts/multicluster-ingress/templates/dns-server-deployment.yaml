@@ -3,6 +3,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: "{{ include "multiclusterIngress.name" . | trunc 40 }}-dns-server"
+  annotations:
+    {{- with .Values.dnsServer.podAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.dnsServer.coredns.prometeheusMetricsEnabled }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.dnsServer.coredns.metricsPort }}"
+    {{- end }}
   labels:
     {{- with .Values.dnsServer.podLabels }}
     {{- toYaml . | nindent 4 }}
@@ -43,6 +51,9 @@ spec:
       - name: dns-server
         args:
         - --dns-server
+        env:
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "{{ .Values.dnsServer.grpcPort }}"
         envFrom:
         - configMapRef:
             name: mcingress
@@ -53,25 +64,19 @@ spec:
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
-        - containerPort: 8080
-          protocol: TCP
-          name: http
-        - containerPort: {{ .Values.config.listenUDPPort }}
-          protocol: UDP
-          name: dns-dns
-        - containerPort: {{ .Values.config.listenTCPPort }}
-          protocol: TCP
-          name: dns-tcp
+        - containerPort: {{ .Values.dnsServer.grpcPort }}
+          protocol: GRPC
+          name: grpc
         livenessProbe:
           httpGet:
             path: /Healthz/Liveness
-            port: http
+            port: grpc
           initialDelaySeconds: 30
           timeoutSeconds: 1
         readinessProbe:
           httpGet:
             path: /Healthz/Ready
-            port: http
+            port: grpc
           initialDelaySeconds: 15
           timeoutSeconds: 1
         resources:
@@ -83,7 +88,48 @@ spec:
         {{ with .Values.apiServer.volumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      - name: coredns
+        args:
+        - -conf
+        - /etc/coredns/Corefile
+        command:
+        - /coredns
+        image: "{{ .Values.dnsServer.coredns.image }}"
+        imagePullPolicy: {{ .Values.dnsServer.coredns.imagePullPolicy }}
+        ports:
+        - containerPort: {{ .Values.dnsServer.coredns.port }}
+          protocol: TCP
+          name: dns-tcp
+        - containerPort: {{ .Values.dnsServer.coredns.port }}
+          protocol: UDP
+          name: dns-udp
+        - containerPort: {{ .Values.dnsServer.coredns.healthCheckPort }}
+          protocol: TCP
+          name: health
+        - containerPort: {{ .Values.dnsServer.coredns.metricsPort }}
+          protocol: TCP
+          name: metrics
+        - containerPort: {{ .Values.dnsServer.coredns.readinessPort }}
+          protocol: TCP
+          name: readiness
+        resources:
+          {{- toYaml .Values.dnsServer.coredns.resources | nindent 10 }}
+        volumeMounts:
+        - mountPath: /etc/coredns
+          name: coredns-config
+        livenessProbe:
+          httpGet: /health
+          port: health
+        readinessProbe:
+          httpGet: /ready
+          port: readiness
       volumes:
+      - name: coredns-config
+        configMap:
+          name: coredns
+          items:
+          - key: Corefile
+            path: Corefile
       - name: appconfig
         configMap:
           name: mcingress-appsettings

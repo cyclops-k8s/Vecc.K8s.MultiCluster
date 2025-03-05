@@ -1,0 +1,16 @@
+{{- if .Values.dnsServer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+data:
+    Corefile: |
+        .:{{ .Values.dnsServer.coredns.port }} {
+            log
+            errors
+            health 0.0.0.0:{{ .Values.dnsServer.coredns.healthCheckPort }}
+            ready 0.0.0.0:{{ .Values.dnsServer.coredns.readinessPort }}
+            prometheus 0.0.0.0:{{ .Values.dnsServer.coredns.metricsPort }}
+            grpc . 127.0.0.1:{{ .Values.dnsServer.grpcPort }}
+        }
+{{- end }}

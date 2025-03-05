@@ -41,10 +41,6 @@ data:
   appsettings: |
     {
       "AllowedHosts": "*",
-      "DnsServer": {
-        "ListenTCPPort": 0,
-        "ListenUDPPort": 0
-      },
       "Authentication": {
         "ApiKeys": []
       },
@@ -58,5 +54,5 @@ data:
       "HeartbeatTimeout": 0,
       "NameserverNames": {},
       "Peers": [],
-      "PerioidRefreshInterval": 0
+      "PeriodicRefreshInterval": 0
     }
