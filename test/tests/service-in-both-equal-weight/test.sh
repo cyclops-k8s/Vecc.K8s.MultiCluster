@@ -31,7 +31,7 @@ setup() {
     (( RETCODE+=$? )) || true
 
     echo "Giving it a second for the api's to register everything"
-    sleep 1
+    sleep 20
     return $RETCODE
 }
 

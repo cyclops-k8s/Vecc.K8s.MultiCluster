@@ -40,7 +40,9 @@ data:
 EOF
 
 echo_color "${G}Applying operators"
+kubectl create ns mcingress-operator
 kustomize build operator/$1 | kubectl apply -f -
+helm upgrade --install mcingress --namespace mcingress-operator ../charts/multicluster-ingress -f operator/$1/values.yaml
 
 set_namespace mcingress-operator
 

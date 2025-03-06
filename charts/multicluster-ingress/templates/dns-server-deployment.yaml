@@ -56,6 +56,10 @@ spec:
           value: "{{ .Values.dnsServer.listenPort }}"
         - name: ListenGrpcPort
           value: "{{ .Values.dnsServer.grpcPort }}"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         envFrom:
         - configMapRef:
             name: mcingress
@@ -75,13 +79,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /Healthz/Liveness
-            port: grpc
+            port: http
           initialDelaySeconds: 30
           timeoutSeconds: 1
         readinessProbe:
           httpGet:
             path: /Healthz/Ready
-            port: grpc
+            port: http
           initialDelaySeconds: 15
           timeoutSeconds: 1
         resources:
@@ -120,15 +124,17 @@ spec:
         resources:
           {{- toYaml .Values.dnsServer.coredns.resources | nindent 10 }}
         volumeMounts:
-        - mountPath: /etc/coredns
+        - mountPath: /etc/coredns/Corefile
           name: coredns-config
           subPath: Corefile
         livenessProbe:
-          httpGet: /health
-          port: health
+          httpGet:
+            path: /health
+            port: health
         readinessProbe:
-          httpGet: /ready
-          port: readiness
+          httpGet:
+            path: /ready
+            port: readiness
       volumes:
       - name: coredns-config
         configMap:

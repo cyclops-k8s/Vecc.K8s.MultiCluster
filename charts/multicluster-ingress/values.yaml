@@ -162,6 +162,9 @@ orchestrator:
     component: orchestrator
 
 config:
+  # 64 bytes of random data base64 encoded. If not set, the existing will be used, if there is no existing salt then a new one will be created
+  clusterSalt: ""
+  
   ################################################################################################
   ### Secret configuration for the cluster
   # If you want to create your secret yourself, for example, via a SealedSecret
@@ -193,12 +196,6 @@ config:
 
   # Default TTL for records in seconds
   defaultRecordTTL: 5
-
-  # port for the dns server pod to listen on, the external service will always be port 53
-  listenUDPPort: 1053
-
-  # port for the dns server pod to listen on, the external service will always be port 53
-  listenTCPPort: 1053
 
   # email address to use in the SOA record for the dns server, use .'s instead of @'s
   responsibleEmailAddress: edward.frakkingsweet.com

@@ -146,7 +146,7 @@ assert() {
 
     use_context 2
     echo "Stopping mcingress-operator pods (except dns and orchestrator) at $(date)"
-    kubectl patch deployment -n mcingress-operator operator-operator -p '{"spec":{"replicas":0}}'
+    kubectl patch deployment -n mcingress-operator multiclusteringress-operator -p '{"spec":{"replicas":0}}'
 
     wait_for_resource_missing pod app=operator 30
 
@@ -244,7 +244,7 @@ cleanup() {
     use_context 2
 
     set_namespace mcingress-operator
-    kubectl patch deployment -n mcingress-operator operator-operator -p '{"spec":{"replicas":1}}'
+    kubectl patch deployment -n mcingress-operator multiclusteringress-operator -p '{"spec":{"replicas":1}}'
     (( RESULT+=$? )) || true
     wait_for_resource pod condition=ready component=operator 90
 

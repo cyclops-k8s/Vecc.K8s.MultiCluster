@@ -40,6 +40,10 @@ spec:
         env:
         - name: ListenPort
           value: "{{ .Values.orchestrator.listenPort }}"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         envFrom:
         - configMapRef:
             name: mcingress

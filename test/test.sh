@@ -16,15 +16,15 @@ function terminate() {
     mv "$TEMPDIRECTORY"/* "$TEMPDIRECTORY"/results 2> /dev/null
     RESULTS="results-$(date +%Y%m%d-%H%M%S).tgz"
     mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test1"
-    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-dns-server.log"
-    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-api-server.log"
-    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-orchestrator.log"
-    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-dns-server.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-api-server.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-orchestrator.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
     mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test2"
-    kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-dns-server.log"
-    kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-api-server.log"
-    kubectl logs --context kind-test2 -n mcingress-operator deployment/operator-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-orchestrator.log"
-    kubectl logs --context kind-test1 -n mcingress-operator deployment/operator-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-dns-server.log"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-api-server.log"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-orchestrator.log"
+    kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
 
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
     tar -czf "$DIRECTORY/$RESULTS" --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
@@ -90,7 +90,7 @@ set -e
 
 ./create-docker-registry.sh
 
-docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:latest ../
+docker image build --build-arg DEBUG=1 -t localhost:${reg_port}/multicluster:latest ../ --progress=plain
 docker image push localhost:${reg_port}/multicluster:latest
 
 docker image build -t localhost:${reg_port}/ingress-operator:latest ingress-operator
@@ -116,8 +116,8 @@ kubectl get ns
 set +e
 
 (
-    eval "kubectl relay --context kind-test1 --namespace mcingress-operator deployment/operator-dns-server 1053:1053@udp" 1> "$TEMPDIRECTORY/Relay-1.txt" 2>&1 &
-    eval "kubectl relay --context kind-test2 --namespace mcingress-operator deployment/operator-dns-server 1054:1053@udp" 1> "$TEMPDIRECTORY/Relay-2.txt" 2>&1 &
+    eval "kubectl relay --context kind-test1 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1053:1053@udp" 1> "$TEMPDIRECTORY/Relay-1.txt" 2>&1 &
+    eval "kubectl relay --context kind-test2 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1054:1053@udp" 1> "$TEMPDIRECTORY/Relay-2.txt" 2>&1 &
 )
 
 spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" "

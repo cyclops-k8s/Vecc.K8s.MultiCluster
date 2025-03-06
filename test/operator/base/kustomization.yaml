@@ -1,23 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
 resources:
-- namespace.yaml
 - ingress-namespace.yaml
-- api-server-role-binding.yaml
-- api-server-role.yaml
-- configmap.yaml
-- crds.yaml
-- deployment.yaml
-- dns-server-role-binding.yaml
-- dns-server-role.yaml
 - ingress-deployment.yaml
 - ingress-role-binding.yaml
 - ingress-role.yaml
-- operator-role-bindings.yaml
-- operator-roles.yaml
-- orchestrator-role.yaml
-- orchestrator-role-binding.yaml
-- service-accounts.yaml
-- service-api.yaml
-- service-dns.yaml
-
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+- service.yaml

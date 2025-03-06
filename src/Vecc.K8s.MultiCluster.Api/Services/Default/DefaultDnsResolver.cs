@@ -35,7 +35,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             foreach (var question in incoming.Questions)
             {
-                var q = question.Name.ToString();
+                using var scope = _logger.BeginScope(new { Hostname = question.Name.ToString() });
+
                 switch (question.Type)
                 {
                     case RecordType.A:
@@ -140,7 +141,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 if (hostIPs.Length == 0)
                 {
-                    _logger.LogError("No host for {@hostname}", hostname);
+                    _logger.LogError("No IP found in cache");
                     return;
                 }
                 if (hostIPs.Length == 1)
@@ -174,7 +175,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
             else
             {
-                _logger.LogInformation("Unknown host: {@hostname}", hostname);
+                _logger.LogInformation("Unknown host");
             }
         }
 

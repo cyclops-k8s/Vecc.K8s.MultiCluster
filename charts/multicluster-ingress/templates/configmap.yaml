@@ -4,8 +4,6 @@ metadata:
   name: mcingress
 data:
   ClusterIdentifier: "{{ .Values.config.clusterIdentifier }}"
-  DnsServer__ListenTCPPort: "{{ .Values.config.listenTCPPort }}"
-  DnsServer__ListenUDPPort: "{{ .Values.config.listenUDPPort }}"
   DNSServerResponsibleEmailAddress: "{{ .Values.config.responsibleEmailAddress }}"
 
   {{- range $index, $nameserver := .Values.config.nameservers }}
@@ -16,7 +14,7 @@ data:
   DNSServerResponsibleEmailAddress: "{{ .Values.config.responsibleEmailAddress }}"
 
   {{- range $index, $remote := .Values.config.apiKeys }}
-  Authentication__ApiKeys__{{ $index}}__Identifier: {{ $remote.Identifier }}
+  Authentication__ApiKeys__{{ $index}}__ClusterIdentifier: {{ $remote.Identifier }}
   Authentication__ApiKeys__{{ $index}}__Key: {{ $remote.Key }}
   {{- end }}
 

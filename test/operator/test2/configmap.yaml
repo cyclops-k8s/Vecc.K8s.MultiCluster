@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mcingress
-  namespace: mcingress-operator
-data:
-  Authentication__ApiKeys__0__ClusterIdentifier: test1
-  Peers__0__Url: http://test1-control-plane:5002/
-  Peers__0__Identifier: test1
