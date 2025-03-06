@@ -5,7 +5,7 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-        <DockerfileContext>..\..</DockerfileContext>
+        <DockerfileContext>../..</DockerfileContext>
     </PropertyGroup>
 
         <PropertyGroup>
@@ -48,8 +48,8 @@
         <PackageReference Include="Dns" Version="7.0.0" />
     </ItemGroup>
     <ItemGroup>
-      <Protobuf Include="..\..\coredns.proto" GrpcServices="Server">
-        <Link>Protos\coredns.proto</Link>
+      <Protobuf Include="../../coredns.proto" GrpcServices="Server">
+        <Link>Protos/coredns.proto</Link>
       </Protobuf>
     </ItemGroup>
 

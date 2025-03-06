@@ -52,8 +52,14 @@ spec:
         args:
         - --dns-server
         env:
-        - name: ASPNETCORE_HTTP_PORTS
+        - name: ListenPort
+          value: "{{ .Values.dnsServer.listenPort }}"
+        - name: ListenGrpcPort
           value: "{{ .Values.dnsServer.grpcPort }}"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         envFrom:
         - configMapRef:
             name: mcingress
@@ -65,18 +71,21 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
         - containerPort: {{ .Values.dnsServer.grpcPort }}
-          protocol: GRPC
+          protocol: TCP
           name: grpc
+        - containerPort: {{ .Values.dnsServer.listenPort }}
+          protocol: TCP
+          name: http
         livenessProbe:
           httpGet:
             path: /Healthz/Liveness
-            port: grpc
+            port: http
           initialDelaySeconds: 30
           timeoutSeconds: 1
         readinessProbe:
           httpGet:
             path: /Healthz/Ready
-            port: grpc
+            port: http
           initialDelaySeconds: 15
           timeoutSeconds: 1
         resources:
@@ -85,7 +94,7 @@ spec:
         - mountPath: /app/appsettings.json
           subPath: appsettings.json
           name: appconfig
-        {{ with .Values.apiServer.volumeMounts }}
+        {{ with .Values.dnsServer.volumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       - name: coredns
@@ -115,14 +124,17 @@ spec:
         resources:
           {{- toYaml .Values.dnsServer.coredns.resources | nindent 10 }}
         volumeMounts:
-        - mountPath: /etc/coredns
+        - mountPath: /etc/coredns/Corefile
           name: coredns-config
+          subPath: Corefile
         livenessProbe:
-          httpGet: /health
-          port: health
+          httpGet:
+            path: /health
+            port: health
         readinessProbe:
-          httpGet: /ready
-          port: readiness
+          httpGet:
+            path: /ready
+            port: readiness
       volumes:
       - name: coredns-config
         configMap:

@@ -116,10 +116,7 @@ get_ip() {
         return 1
     fi
 
-    IP=$(dig "$2" @localhost -p $PORT \
-            | grep -o -E "^$2.*" \
-            | grep -o -E "[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?\.[0-9][0-9]?[0-9]?" \
-            || true)
+    IP=$(dig +short "$2" @localhost -p $PORT || true)
 
     echo -n "$IP"
 }

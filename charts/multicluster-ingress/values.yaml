@@ -24,6 +24,7 @@ apiServer:
     #  - secretName: chart-example-tls
     #    hosts:
     #      - chart-example.local
+  listenPort: 8080
   replicas: 2
   service:
     type: ClusterIP
@@ -57,12 +58,15 @@ apiServer:
 dnsServer:
   enabled: true
   coredns:
+    image: "coredns/coredns:1.12.0"
+    imagePullPolicy: IfNotPresent
     prometeheusMetricsEnabled: true
     port: 1053
     healthCheckPort: 8080
     readinessPort: 8181
     metricsPort: 9153
   grpcPort: 1153
+  listenPort: 5000
   replicas: 2
   serviceAccount:
     name: dns-server
@@ -97,6 +101,7 @@ dnsServer:
 
 operator:
   enabled: true
+  listenPort: 8080
   replicas: 2
   serviceAccount:
     name: operator
@@ -127,6 +132,7 @@ operator:
 
 orchestrator:
   enabled: true
+  listenPort: 8080
   replicas: 2
   serviceAccount:
     name: orchestrator
@@ -156,6 +162,9 @@ orchestrator:
     component: orchestrator
 
 config:
+  # 64 bytes of random data base64 encoded. If not set, the existing will be used, if there is no existing salt then a new one will be created
+  clusterSalt: ""
+  
   ################################################################################################
   ### Secret configuration for the cluster
   # If you want to create your secret yourself, for example, via a SealedSecret
@@ -187,12 +196,6 @@ config:
 
   # Default TTL for records in seconds
   defaultRecordTTL: 5
-
-  # port for the dns server pod to listen on, the external service will always be port 53
-  listenUDPPort: 1053
-
-  # port for the dns server pod to listen on, the external service will always be port 53
-  listenTCPPort: 1053
 
   # email address to use in the SOA record for the dns server, use .'s instead of @'s
   responsibleEmailAddress: edward.frakkingsweet.com

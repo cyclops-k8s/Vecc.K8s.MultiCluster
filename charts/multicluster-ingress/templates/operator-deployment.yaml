@@ -43,6 +43,13 @@ spec:
       - name: operator
         args:
         - --operator
+        env:
+        - name: ListenPort
+          value: "{{ .Values.operator.listenPort }}"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         envFrom:
         - configMapRef:
             name: mcingress
@@ -53,7 +60,7 @@ spec:
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
-        - containerPort: 8080
+        - containerPort: {{ .Values.operator.listenPort }}
           protocol: TCP
           name: http
         livenessProbe:

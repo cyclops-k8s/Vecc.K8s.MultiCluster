@@ -1,0 +1,38 @@
+crds:
+  enabled: true
+
+apiServer:
+  replicas: 1
+
+dnsServer:
+  replicas: 1
+
+operator:
+  replicas: 1
+
+orchestrator:
+  replicas: 1
+
+config:
+  clusterSalt: JU975LRi7ynSUz0bk57F/O/sF+zrOqK7NfbcQTgjszdfZ3LTG5mBqxKCU2FvAwX2PuVaCF0/y5v7cSmY9wkw5A==
+  logLevel: Information
+  responsibleEmailAddress: edward.frakkingsweet.com
+  heartbeatCheckInterval: 1
+  heartbeatTimeout: 7
+  heartbeatSetInterval: 5
+
+  apiKeys:
+  - Identifier: test1
+    Key: W26VCNAgvtUa5B38iNmFLPUa3hoUYY3L152qJPyJOeQ7UVu0G+XSDL1+lq6zNqnJ8HgVpgJoQulb9KRX690UGQ==
+
+  peers:
+  - Identifier: test1
+    Key: c648c376-059e-4947-8e7a-6d7528c5c85c
+    Url: http://test1-control-plane:30000/
+
+  periodicRefreshInterval: 0
+
+image:
+  repository: localhost:5001/multicluster
+  pullPolicy: IfNotPresent
+  tag: "latest"
