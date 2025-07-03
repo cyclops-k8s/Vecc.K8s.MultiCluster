@@ -13,7 +13,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly IKubernetesClient _kubernetesClient;
         private readonly IOptions<MultiClusterOptions> _options;
         private readonly IDateTimeProvider _dateTimeProvider;
-        private readonly AutoResetEvent _synchronizeCacheHolder = new (true);
+        private readonly AutoResetEvent _synchronizeCacheHolder = new(true);
+        private readonly AutoResetEvent _setClusterCacheSemaphore = new(true);
 
         public KubernetesApiCache(ILogger<KubernetesApiCache> logger, IKubernetesClient kubernetesClient, IOptions<MultiClusterOptions> options, IDateTimeProvider dateTimeProvider)
         {
@@ -150,17 +151,25 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             _logger.LogTrace("Setting cluster cache for {clusterIdentifier} to {@hosts}", clusterIdentifier, hosts);
 
-            var cluster = await GetOrCreateClusterCache(clusterIdentifier);
-
-            cluster!.Hostnames = hosts.Select(x => new V1ClusterCache.HostCache
+            try
             {
-                Hostname = x.Hostname,
-                HostIPs = x.HostIPs.Select(V1ClusterCache.HostIPCache.FromCore).ToArray()
-            }).ToArray();
+                _setClusterCacheSemaphore.WaitOne();
+                var cluster = await GetOrCreateClusterCache(clusterIdentifier);
 
-            cluster.LastHeartbeat = DateTime.UtcNow.ToString("O");
+                cluster!.Hostnames = hosts.Select(x => new V1ClusterCache.HostCache
+                {
+                    Hostname = x.Hostname,
+                    HostIPs = x.HostIPs.Select(V1ClusterCache.HostIPCache.FromCore).ToArray()
+                }).ToArray();
 
-            await _kubernetesClient.SaveAsync(cluster);
+                cluster.LastHeartbeat = DateTime.UtcNow.ToString("O");
+
+                await _kubernetesClient.SaveAsync(cluster);
+            }
+            finally
+            {
+                _setClusterCacheSemaphore.Set();
+            }
 
             _logger.LogTrace("Done");
         }
@@ -169,9 +178,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             _logger.LogDebug("Updating cluster heartbeat for {clusterIdentifier} to {heartbeat}", clusterIdentifier, heartbeat);
 
-            var cluster = await GetOrCreateClusterCache(clusterIdentifier);
-            cluster!.LastHeartbeat = heartbeat.ToString("O");
-            await _kubernetesClient.SaveAsync(cluster);
+            try
+            {
+                _setClusterCacheSemaphore.WaitOne();
+                var cluster = await GetOrCreateClusterCache(clusterIdentifier);
+                cluster!.LastHeartbeat = heartbeat.ToString("O");
+                await _kubernetesClient.SaveAsync(cluster);
+            }
+            finally
+            {
+                _setClusterCacheSemaphore.Set();
+            }
 
             _logger.LogDebug("Done");
         }
@@ -320,16 +337,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 name = name.Substring(1);
             }
 
-            if (name.Length > 253)
-            {
-                name = name.Substring(253 - 17);
-            }
-            else
+            if (name.Length <= 63)
             {
                 return name;
             }
 
-            var newName = (Guid.NewGuid().ToString("N").Substring(16) + "-" + name.Substring(46)).ToLower();
+            var newName = name.Substring(46) +  "-" + Guid.NewGuid().ToString("N").Substring(16).ToLower();
             _logger.LogInformation("Name {name} is too long, converting to {newname}", name, newName);
             return newName;
         }
