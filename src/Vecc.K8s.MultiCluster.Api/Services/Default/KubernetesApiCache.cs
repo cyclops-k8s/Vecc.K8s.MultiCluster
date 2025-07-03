@@ -320,16 +320,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 name = name.Substring(1);
             }
 
-            if (name.Length > 253)
-            {
-                name = name.Substring(253 - 17);
-            }
-            else
+            if (name.Length <= 63)
             {
                 return name;
             }
 
-            var newName = (Guid.NewGuid().ToString("N").Substring(16) + "-" + name.Substring(46)).ToLower();
+            var newName = name.Substring(46) +  "-" + Guid.NewGuid().ToString("N").Substring(16).ToLower();
             _logger.LogInformation("Name {name} is too long, converting to {newname}", name, newName);
             return newName;
         }
