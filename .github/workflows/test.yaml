@@ -21,7 +21,9 @@ jobs:
       working-directory: test
       env:
         IS_CI: "1"
+
     - uses: actions/upload-artifact@v4
+      if: success() || failure()
       with:
         name: Test Results
         path: test/results-*.tgz
