@@ -149,6 +149,7 @@ set -e
 
 free --mega -hv --total > "$TEMPDIRECTORY/memory.txt"
 free --mega -hv --total
+df -h
 
 set +e
 
