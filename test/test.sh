@@ -20,13 +20,14 @@ function terminate() {
     kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-api-server.log"
     kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-orchestrator.log"
     kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
+    kubectl get --context kind-test1 pods -A -o wide > "$TEMPDIRECTORY/results/kubernetes/kind-test1/allpods.txt"
 
     mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test2"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-dns-server.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-api-server.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-orchestrator.log"
-    kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
-    kubectl get pods -A -o wide > "$TEMPDIRECTORY/results/kubernetes/allpods.txt"
+    kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-operator.log"
+    kubectl get --context kind-test2 pods -A -o wide > "$TEMPDIRECTORY/results/kubernetes/kind-test2/allpods.txt"
 
     echo_color "${G}Tarring up results to ${Y}${RESULTS}"
     tar -czf "$DIRECTORY/$RESULTS" --transform="s!.*/results!results!" "$TEMPDIRECTORY/results" 1> /dev/null 2> /dev/null
@@ -118,8 +119,8 @@ kubectl get ns
 set +e
 
 (
-    eval "echo 'starting' && date && kubectl relay --context kind-test1 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1053:1053@udp && echo 'ended' && date" 1> "$TEMPDIRECTORY/Relay-1.txt" 2>&1 &
-    eval "echo 'starting' && date && kubectl relay --context kind-test2 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1054:1053@udp && echo 'ended' && date" 1> "$TEMPDIRECTORY/Relay-2.txt" 2>&1 &
+    eval 'echo "starting" && date && kubectl relay --context kind-test1 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1053:1053@udp; echo "Exit Code $?"; echo "ended" && date' 1> "$TEMPDIRECTORY/Relay-1.txt" 2>&1 &
+    eval 'echo "starting" && date && kubectl relay --context kind-test2 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1054:1053@udp; echo "Exit Code $?"; echo "ended" && date' 1> "$TEMPDIRECTORY/Relay-2.txt" 2>&1 &
 )
 
 spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" "
@@ -184,6 +185,7 @@ do
         (( FAILEDTESTCOUNT++ ))
     fi
     echo_color "${G}-------"
+    break
 done
 
 echo_color "${G}All tests executed"
