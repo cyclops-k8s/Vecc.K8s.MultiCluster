@@ -147,6 +147,9 @@ done
 set -e
 "
 
+free --mega -hv --total > "$TEMPDIRECTORY/memory.txt"
+free --mega -hv --total
+
 set +e
 
 echo_color "${G}Getting cluster 1 ingress IP"
