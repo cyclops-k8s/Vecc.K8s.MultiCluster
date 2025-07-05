@@ -330,9 +330,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         private string GenerateName(string name)
         {
-            name = string.Concat(name.Where(x => x == '-' || char.IsLetterOrDigit(x) || x == '.')).ToLower();
+            name = string.Concat(name.Where(x => char.IsLetterOrDigit(x))).ToLower();
 
-            if (name.StartsWith('-') || char.IsDigit(name[0]))
+            while (char.IsDigit(name[0]))
             {
                 name = name.Substring(1);
             }
@@ -342,7 +342,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 return name;
             }
 
-            var newName = name.Substring(46) +  "-" + Guid.NewGuid().ToString("N").Substring(16).ToLower();
+            var newName = name.Substring(0, 46) +  "-" + Guid.NewGuid().ToString("N").Substring(16).ToLower();
             _logger.LogInformation("Name {name} is too long, converting to {newname}", name, newName);
             return newName;
         }
