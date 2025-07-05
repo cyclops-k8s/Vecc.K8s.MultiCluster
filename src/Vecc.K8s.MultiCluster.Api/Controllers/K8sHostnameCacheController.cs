@@ -34,8 +34,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public Task DeletedAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Hostname cache {@namespace}/{@hostname} deleted", entity.Namespace(), entity.Name());
-            _queue.OnHostChangedAsync(entity.Name());
+            var hostname = entity.GetLabel("hostname");
+            _logger.LogInformation("Hostname cache {@namespace}/{@hostname}/{@hostname} deleted", entity.Namespace(), entity.Name(), hostname);
+            _queue.OnHostChangedAsync(hostname);
             _logger.LogInformation("Host changed triggered");
             return Task.CompletedTask;
         }
@@ -47,8 +48,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public Task ReconcileAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Hostname cache {@namespace}/{@hostname} reconcile requested", entity.Namespace(), entity.Name());
-            _queue.OnHostChangedAsync(entity.Name());
+            var hostname = entity.GetLabel("hostname");
+            _logger.LogInformation("Hostname cache {@namespace}/{@name}/{@hostname} reconcile requested", entity.Namespace(), entity.Name(), hostname);
+            _queue.OnHostChangedAsync(hostname);
             _logger.LogInformation("Host changed triggered");
             return Task.CompletedTask;
         }
