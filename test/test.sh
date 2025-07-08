@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# check if socat is available
-if ! command -v socat &> /dev/null
-then
-    echo_color "${R}socat is not installed. Please install socat to run this script.${NOCOLOR}"
-    exit 1
-fi
-
 DIRECTORY="$(pwd)"
 TEMPDIRECTORY=$(mktemp -d)
 
