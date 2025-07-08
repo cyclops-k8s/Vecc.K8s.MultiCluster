@@ -38,23 +38,11 @@ spec:
             name: mcingress
         image: localhost:5001/multicluster:latest
         imagePullPolicy: IfNotPresent
-        livenessProbe:
-          httpGet:
-            path: /Healthz/Liveness
-            port: http
-          initialDelaySeconds: 30
-          timeoutSeconds: 1
         ports:
         - containerPort: 5000
           name: http
         - containerPort: 1153
           name: grpc
-        readinessProbe:
-          httpGet:
-            path: /Healthz/Ready
-            port: http
-          initialDelaySeconds: 15
-          timeoutSeconds: 1
         resources:
           limits:
             cpu: 1000m
@@ -99,14 +87,6 @@ spec:
         volumeMounts:
         - mountPath: /etc/coredns
           name: coredns-config
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: health
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: readiness
       volumes:
       - name: coredns-config
         configMap:
@@ -158,21 +138,9 @@ spec:
             name: mcingress
         image: localhost:5001/multicluster:latest
         imagePullPolicy: IfNotPresent
-        livenessProbe:
-          httpGet:
-            path: /Healthz/Liveness
-            port: http
-          initialDelaySeconds: 30
-          timeoutSeconds: 1
         ports:
         - containerPort: 5001
           name: http
-        readinessProbe:
-          httpGet:
-            path: /Healthz/Ready
-            port: http
-          initialDelaySeconds: 15
-          timeoutSeconds: 1
         resources:
           limits:
             cpu: 1000m
@@ -228,21 +196,9 @@ spec:
             name: mcingress
         image: localhost:5001/multicluster:latest
         imagePullPolicy: IfNotPresent
-        livenessProbe:
-          httpGet:
-            path: /Healthz/Liveness
-            port: http
-          initialDelaySeconds: 30
-          timeoutSeconds: 1
         ports:
         - containerPort: 5001
           name: http
-        readinessProbe:
-          httpGet:
-            path: /Healthz/Ready
-            port: http
-          initialDelaySeconds: 15
-          timeoutSeconds: 1
         resources:
           limits:
             cpu: 1000m
@@ -298,23 +254,11 @@ spec:
             name: mcingress
         image: localhost:5001/multicluster:latest
         imagePullPolicy: IfNotPresent
-        livenessProbe:
-          httpGet:
-            path: /Healthz/Liveness
-            port: http
-          initialDelaySeconds: 30
-          timeoutSeconds: 1
         ports:
         - containerPort: 5002
           hostPort: 5002
           protocol: TCP
           name: http
-        readinessProbe:
-          httpGet:
-            path: /Healthz/Ready
-            port: http
-          initialDelaySeconds: 15
-          timeoutSeconds: 1
         resources:
           limits:
             cpu: 1000m

@@ -4,14 +4,7 @@ set -eo pipefail
 
 . ./functions.sh
 
-cat <<EOF | kind create cluster --name "$1" --config=-
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-containerdConfigPatches:
-- |-
-  [plugins."io.containerd.grpc.v1.cri".registry]
-    config_path = "/etc/containerd/certs.d"
-EOF
+kind create cluster --name "$1" --config=kind-config-$1.yaml
 
 REGISTRY_DIR="/etc/containerd/certs.d/localhost:${reg_port}"
 for node in $(kind get nodes -n "$1"); do

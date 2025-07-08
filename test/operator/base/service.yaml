@@ -18,3 +18,28 @@ spec:
       # By default and for convenience, the Kubernetes control plane
       # will allocate a port from a range (default: 30000-32767)
       nodePort: 30000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dns-nodeport
+  namespace: mcingress-operator
+spec:
+  allocateLoadBalancerNodePorts: true
+
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/instance: mcingress
+    app.kubernetes.io/name: multiclusteringress
+    component: dns-server
+  ports:
+  - name: dns-tcp
+    nodePort: 30001
+    port: 1053
+    protocol: TCP
+    targetPort: dns-tcp
+  - name: dns-udp
+    nodePort: 30001
+    port: 1053
+    protocol: UDP
+    targetPort: dns-udp

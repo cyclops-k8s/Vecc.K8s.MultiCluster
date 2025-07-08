@@ -1,4 +1,12 @@
 #!/bin/bash
+
+# check if socat is available
+if ! command -v socat &> /dev/null
+then
+    echo_color "${R}socat is not installed. Please install socat to run this script.${NOCOLOR}"
+    exit 1
+fi
+
 DIRECTORY="$(pwd)"
 TEMPDIRECTORY=$(mktemp -d)
 
@@ -10,7 +18,6 @@ export TEMPDIRECTORY
 # shellcheck disable=SC2317
 function terminate() {
     set +e
-    pkill kubectl-relay
 
     mkdir -p "$TEMPDIRECTORY/results"
     mv "$TEMPDIRECTORY"/* "$TEMPDIRECTORY"/results 2> /dev/null
@@ -72,23 +79,8 @@ then
     chmod +x ./.test/kubectl
 fi
 
-echo_color "${G}Setting up and downloading krew"
-OS="$(uname | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')"
-KREW="krew-${OS}_${ARCH}"
-KREW_ROOT="$(pwd)/.test/krews"
-export KREW_ROOT
-
-if [ ! -f ./.test/krew ]
-then
-  curl -fsSLo "./.test/${KREW}.tar.gz" "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz"
-  tar zxvf ".test/${KREW}.tar.gz" --transform="s/^/.test\//"
-  mv ".test/${KREW}" ".test/krew"
-  .test/krew install relay
-fi
-
 echo_color "${G}Setting path"
-PATH="$(pwd)/.test:${KREW_ROOT}/bin:$PATH"
+PATH="$(pwd)/.test:$PATH"
 
 echo_color "${G}Setting KUBECONFIG path"
 KUBECONFIG_FILE=$(pwd)/.test/cluster.config
@@ -123,47 +115,20 @@ kubectl get ns
 
 set +e
 
-(
-    eval 'echo "starting" && date && kubectl relay --context kind-test1 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1053:1053@udp; echo "Exit Code $?"; echo "ended" && date' 1> "$TEMPDIRECTORY/Relay-1.txt" 2>&1 &
-    eval 'echo "starting" && date && kubectl relay --context kind-test2 --namespace mcingress-operator deployment/multiclusteringress-dns-server 1054:1053@udp; echo "Exit Code $?"; echo "ended" && date' 1> "$TEMPDIRECTORY/Relay-2.txt" 2>&1 &
-)
-
-spinner_wait "${G}Waiting for the relays to start${NOCOLOR}" "
-set +e
-WAIT=1
-while [ \$WAIT != 0 ]
+echo_color "${G}Waiting for cluster 1 relay to start"
+until dig mcingress.test1 @localhost -p 1053 +tcp
 do
-    dig mcingress.test1 @localhost -p 1053 1> $TEMPDIRECTORY/relaywait.stdout 2> $TEMPDIRECTORY/relaywait.stderr
-    WAIT=\$?
-    [ \$WAIT != 0 ] && sleep 1
+    sleep 1
 done
-WAIT=1
-while [ \$WAIT != 0 ]
+
+echo_color "${G}Waiting for cluster 2 relay to start"
+until dig mcingress.test2 @localhost -p 1054 +tcp
 do
-    dig mcingress.test2 @localhost -p 1054 1>> $TEMPDIRECTORY/relaywait.stdout 2>> $TEMPDIRECTORY/relaywait.stderr
-    WAIT=\$?
-    [ \$WAIT != 0 ] && sleep 1
+    sleep 1
 done
-set -e
-"
 
-free --mega -hv --total > "$TEMPDIRECTORY/memory.txt"
-free --mega -hv --total
-df -h
-
-set +e
-
-echo_color "${G}Getting cluster 1 ingress IP"
-use_context 1
-CLUSTER1IP="192.168.0.1" #$(kubectl get nodes --context kind-test1 test1-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
-export CLUSTER1IP
-echo_color "${Y}${CLUSTER1IP}"
-
-echo_color "${G}Getting cluster 2 ingress IP"
-use_context 2
-CLUSTER2IP="192.168.0.2" #$(kubectl get nodes test2-control-plane -o jsonpath="{.status.addresses}" | jq '.[] | select(.type=="InternalIP") | .address' -r)
-export CLUSTER2IP
-echo_color "${Y}${CLUSTER2IP}"
+export CLUSTER1IP="192.168.0.1"
+export CLUSTER2IP="192.168.0.2"
 
 FAILEDTESTS=()
 PASSEDTESTS=()
@@ -194,7 +159,6 @@ do
         (( FAILEDTESTCOUNT++ ))
     fi
     echo_color "${G}-------"
-    break
 done
 
 echo_color "${G}All tests executed"
@@ -213,4 +177,3 @@ do
 done
 
 exit $RESULTCODE
-# sleep 100

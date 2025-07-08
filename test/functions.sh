@@ -116,7 +116,7 @@ get_ip() {
         return 1
     fi
 
-    IP=$(dig +short "$2" @localhost -p $PORT || true)
+    IP=$(dig +short "$2" @localhost -p $PORT +tcp || true)
 
     echo -n "$IP"
 }
