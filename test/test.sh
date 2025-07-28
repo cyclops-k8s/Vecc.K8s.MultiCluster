@@ -109,13 +109,13 @@ kubectl get ns
 set +e
 
 echo_color "${G}Waiting for cluster 1 relay to start"
-until dig mcingress.test1 @localhost -p 1053 +tcp
+until dig mcingress.test1 @127.0.0.11 +tcp
 do
     sleep 1
 done
 
 echo_color "${G}Waiting for cluster 2 relay to start"
-until dig mcingress.test2 @localhost -p 1054 +tcp
+until dig mcingress.test2 @127.0.0.12 +tcp
 do
     sleep 1
 done
