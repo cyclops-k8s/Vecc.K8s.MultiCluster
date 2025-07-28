@@ -4,12 +4,16 @@ containerdConfigPatches:
 - |-
   [plugins."io.containerd.grpc.v1.cri".registry]
     config_path = "/etc/containerd/certs.d"
+networking:
+  ipFamily: ipv4
 nodes:
 - role: control-plane
   extraPortMappings:
   - containerPort: 30001
-    hostPort: 1053
+    hostPort: 53
     protocol: TCP
+    listenAddress: 127.0.0.11
   - containerPort: 30001
-    hostPort: 1053
+    hostPort: 53
     protocol: UDP
+    listenAddress: 127.0.0.11

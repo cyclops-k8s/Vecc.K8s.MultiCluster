@@ -104,19 +104,7 @@ set_namespace() {
 #   Get the resulting IP of the hostname only-in-cluster-test1.test1 from the first test cluster
 #      get_ip 1 only-in-cluster-test1.test1
 get_ip() {
-    PORT=""
-    if [ "$1" == "1" ]
-    then
-        PORT="1053"
-    elif [ "$1" == "2" ]
-    then
-        PORT="1054"
-    else
-        echo "Invalid cluster identifier $1"
-        return 1
-    fi
-
-    IP=$(dig +short "$2" @localhost -p $PORT +tcp || true)
+    IP=$(dig "$2" @127.0.0.1${1} +short +tcp || true)
 
     echo -n "$IP"
 }
