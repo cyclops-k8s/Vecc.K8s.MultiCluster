@@ -159,7 +159,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 cluster!.Hostnames = hosts.Select(x => new V1ClusterCache.HostCache
                 {
                     Hostname = x.Hostname,
-                    HostIPs = x.HostIPs.Select(V1ClusterCache.HostIPCache.FromCore).ToArray()
+                    HostIPs = x.HostIPs.Select(V1ClusterCache.HostIPCache.FromCore).Distinct().ToArray()
                 }).ToArray();
 
                 cluster.LastHeartbeat = DateTime.UtcNow.ToString("O");

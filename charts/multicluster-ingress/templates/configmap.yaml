@@ -11,6 +11,7 @@ data:
   {{- end }}
   DNSHostname: "{{ .Values.config.dnsHostname }}"
   DefaultRecordTTL: "{{ .Values.config.defaultRecordTTL }}"
+  DNSRefreshInterval: "{{ .Values.config.dnsRefreshInterval }}"
   DNSServerResponsibleEmailAddress: "{{ .Values.config.responsibleEmailAddress }}"
 
   {{- range $index, $remote := .Values.config.apiKeys }}

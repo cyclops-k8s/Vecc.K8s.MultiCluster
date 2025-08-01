@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
@@ -28,23 +28,23 @@
     <ItemGroup>
         <PackageReference Include="Destructurama.Attributed" Version="5.1.0" />
         <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
-        <PackageReference Include="KubeOps.Generator" Version="9.10.0">
+        <PackageReference Include="KubeOps.Generator" Version="9.11.0">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="KubeOps.Operator.Web" Version="9.10.0" />
-        <PackageReference Include="KubeOps.Transpiler" Version="9.10.0" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.17" />
+        <PackageReference Include="KubeOps.Operator.Web" Version="9.11.0" />
+        <PackageReference Include="KubeOps.Transpiler" Version="9.11.0" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.7" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
-        <PackageReference Include="NewRelic.Agent" Version="10.42.0" />
-        <PackageReference Include="NewRelic.Agent.Api" Version="10.42.0" />
+        <PackageReference Include="NewRelic.Agent" Version="10.43.0" />
+        <PackageReference Include="NewRelic.Agent.Api" Version="10.43.0" />
         <PackageReference Include="NewRelic.LogEnrichers.Serilog" Version="1.2.0" />
-        <PackageReference Include="Scalar.AspNetCore" Version="2.5.3" />
+        <PackageReference Include="Scalar.AspNetCore" Version="2.6.4" />
         <PackageReference Include="Serilog" Version="4.3.0" />
         <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
         <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
         <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
-        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
+        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.3" />
         <PackageReference Include="Dns" Version="7.0.0" />
     </ItemGroup>
     <ItemGroup>

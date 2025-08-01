@@ -20,16 +20,14 @@ function terminate() {
     kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-api-server.log"
     kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-orchestrator.log"
     kubectl logs --context kind-test1 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test1/operator-operator.log"
-    kubectl get --context kind-test1 pods -A -o wide > "$TEMPDIRECTORY/results/kubernetes/kind-test1/allpods.txt"
-    kubectl get pods --context kind-test1 -n default | awk '{print $1}' | xargs kubectl logs --context kind-test1 -n default > "$TEMPDIRECTORY/results/kubernetes/kind-test1/relay-log.log" || true
+    kubectl get pods --context kind-test1 -A -o wide > "$TEMPDIRECTORY/results/kubernetes/kind-test1/allpods.txt"
 
     mkdir -p "$TEMPDIRECTORY/results/kubernetes/kind-test2"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-dns-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-dns-server.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-api-server > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-api-server.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-orchestrator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-orchestrator.log"
     kubectl logs --context kind-test2 -n mcingress-operator deployment/multiclusteringress-operator > "$TEMPDIRECTORY/results/kubernetes/kind-test2/operator-operator.log"
-    kubectl get --context kind-test2 pods -A -o wide > "$TEMPDIRECTORY/results/kubernetes/kind-test2/allpods.txt"
-    kubectl get pods --context kind-test2 -n default | awk '{print $1}' | xargs kubectl logs --context kind-test2 -n default > "$TEMPDIRECTORY/results/kubernetes/kind-test2/relay-log.log" || true
+    kubectl get pods --context kind-test2 -A -o wide > "$TEMPDIRECTORY/results/kubernetes/kind-test2/allpods.txt"
 
     free --mega -hv --total > "$TEMPDIRECTORY/results/memory.txt"
     ps -ef > "$TEMPDIRECTORY/results/ps.txt"

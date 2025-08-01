@@ -194,6 +194,9 @@ config:
   # Hostname to use for the dns server, this is used in the SOA record
   dnsHostname: cluster1.domain.tld
 
+  # How frequently for the DNS server to resync it's cache to make sure it has the latest values
+  dnsRefreshInterval: 30
+
   # Default TTL for records in seconds
   defaultRecordTTL: 5
 
@@ -239,6 +242,7 @@ config:
 
   # How frequently to refresh the cluster to maintain consistency if an event is not caught in the cluster
   periodicRefreshInterval: 300
+
 rbac:
   enabled: true
 

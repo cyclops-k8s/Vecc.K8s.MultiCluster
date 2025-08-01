@@ -15,15 +15,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly IOptions<MultiClusterOptions> _options;
         private readonly IRandom _random;
         private readonly ICache _cache;
+        private readonly IHostApplicationLifetime _hostApplicationLifetime;
         private readonly ConcurrentDictionary<string, WeightedHostIp[]> _hosts;
+        private Task _resyncer;
 
-        public DefaultDnsResolver(ILogger<DefaultDnsResolver> logger, IOptions<MultiClusterOptions> options, IRandom random, ICache cache)
+        public DefaultDnsResolver(ILogger<DefaultDnsResolver> logger, IOptions<MultiClusterOptions> options, IRandom random, ICache cache, IHostApplicationLifetime hostApplicationLifetime)
         {
             _logger = logger;
             _options = options;
             _random = random;
             _cache = cache;
+            _hostApplicationLifetime = hostApplicationLifetime;
             _hosts = new ConcurrentDictionary<string, WeightedHostIp[]>();
+            _resyncer = Task.CompletedTask; // Initialize to a completed task to avoid null reference exceptions
         }
 
         public OnHostChangedAsyncDelegate OnHostChangedAsync => new OnHostChangedAsyncDelegate(RefreshHostInformationAsync);
@@ -54,23 +58,19 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Transaction]
         public async Task InitializeAsync()
         {
-            var hostnames = await _cache.GetHostnamesAsync();
+            _logger.LogInformation("Initializing DNS resolver.");
+            await ResyncAsync();
 
-            if (hostnames != null)
+            _logger.LogInformation("Starting resyncer task for DNS resolver.");
+            _resyncer = new Task(async () => await ResyncTimerAsync());
+
+            if (_resyncer.Status != TaskStatus.Running)
             {
-                foreach (var hostname in hostnames)
-                {
-                    await RefreshHostInformationAsync(hostname);
-                }
-
-                foreach (var hostname in _hosts.Keys.ToArray())
-                {
-                    if (!hostnames.Contains(hostname))
-                    {
-                        _hosts.Remove(hostname, out var _);
-                    }
-                }
+                _logger.LogInformation("Task status: {status}", _resyncer.Status);
+                _resyncer.Start();
             }
+
+            _logger.LogInformation("DNS resolver initialized and resyncer started.");
         }
 
         [Transaction]
@@ -94,38 +94,49 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
             var weightStart = 1;
             var weightedIPs = new List<WeightedHostIp>();
-            foreach (var ip in hostInformation.HostIPs)
+            foreach (var cluster in hostInformation.HostIPs.Distinct().GroupBy(x => x.ClusterIdentifier))
             {
-                WeightedHostIp weightedHostIp;
-                if (!IPAddress.TryParse(ip.IPAddress, out var ipAddress))
+                var alreadyDidCluster = false;
+                foreach (var ip in cluster)
                 {
-                    _logger.LogWarning("IPAddress is not parseable {@hostname} {@clusterIdentifier} {@ip}", hostname, ip.ClusterIdentifier, ip.IPAddress);
-                }
-                if (ip.Weight == 0)
-                {
-                    weightedHostIp = new WeightedHostIp
+                    if (alreadyDidCluster)
                     {
-                        IP = ip,
-                        Priority = ip.Priority,
-                        WeightMin = 0,
-                        WeightMax = 0
-                    };
-                }
-                else
-                {
-                    var maxWeight = weightStart + ip.Weight;
-                    weightedHostIp = new WeightedHostIp
-                    {
-                        IP = ip,
-                        Priority = ip.Priority,
-                        WeightMin = weightStart,
-                        WeightMax = maxWeight
-                    };
-                    weightStart = maxWeight + 1;
-                }
-                weightedIPs.Add(weightedHostIp);
-            }
+                        _logger.LogWarning("Multiple IPs for the same cluster {@hostname} {@clusterIdentifier} {@ip} {@weight} {@priority}, skipping this one.", hostname, ip.ClusterIdentifier, ip.IPAddress, ip.Weight, ip.Priority);
+                        continue; // Skip if we already processed an IP for this cluster
+                    }
+                    alreadyDidCluster = true;
 
+                    WeightedHostIp weightedHostIp;
+                    if (!IPAddress.TryParse(ip.IPAddress, out var ipAddress))
+                    {
+                        _logger.LogWarning("IPAddress is not parseable {@hostname} {@clusterIdentifier} {@ip}, likely should be a CNAME which isn't implemented yet.", hostname, ip.ClusterIdentifier, ip.IPAddress);
+                    }
+
+                    if (ip.Weight == 0)
+                    {
+                        weightedHostIp = new WeightedHostIp
+                        {
+                            IP = ip,
+                            Priority = ip.Priority,
+                            WeightMin = 0,
+                            WeightMax = 0
+                        };
+                    }
+                    else
+                    {
+                        var maxWeight = weightStart + ip.Weight;
+                        weightedHostIp = new WeightedHostIp
+                        {
+                            IP = ip,
+                            Priority = ip.Priority,
+                            WeightMin = weightStart,
+                            WeightMax = maxWeight
+                        };
+                        weightStart = maxWeight + 1;
+                    }
+                    weightedIPs.Add(weightedHostIp);
+                }
+            }
             _hosts[hostname] = weightedIPs.ToArray();
         }
 
@@ -259,6 +270,50 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             public int WeightMin { get; set; }
             public int WeightMax { get; set; }
             public HostIP IP { get; set; }
+        }
+
+        private async Task ResyncTimerAsync()
+        {
+            while (!_hostApplicationLifetime.ApplicationStopping.IsCancellationRequested)
+            {
+                try
+                {
+                    _logger.LogInformation("Resyncing hostnames");
+                    await Task.Delay(TimeSpan.FromSeconds(_options.Value.DNSRefreshInterval), _hostApplicationLifetime.ApplicationStopping);
+                    await ResyncAsync();
+                }
+                catch (TaskCanceledException)
+                {
+                    _logger.LogInformation("Periodic refresh of DNS resolver was cancelled due to application stopping.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error during periodic refresh of DNS resolver");
+                }
+            }
+
+        }
+
+        [Trace]
+        private async Task ResyncAsync()
+        {
+            var hostnames = await _cache.GetHostnamesAsync();
+
+            if (hostnames != null)
+            {
+                foreach (var hostname in hostnames)
+                {
+                    await RefreshHostInformationAsync(hostname);
+                }
+
+                foreach (var hostname in _hosts.Keys.ToArray())
+                {
+                    if (!hostnames.Contains(hostname))
+                    {
+                        _hosts.Remove(hostname, out var _);
+                    }
+                }
+            }
         }
     }
 }
