@@ -214,13 +214,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             var service = gslbServices[0]!;
                             var endpoint = endpoints.FirstOrDefault(e => e.Namespace() == service.Namespace() && e.Name() == service.Name());
 
-                            if (endpoint == null)
+                            if (service.Spec.Type == "ExternalName")
+                            {
+                                _logger.LogDebug("Service type is ExternalName, skipping check for endpoints");
+                            }
+                            else if (endpoint == null)
                             {
                                 _logger.LogWarning("Endpoints not found for {service}. Skipping", service.Namespace() + "/" + service.Name());
                                 continue;
                             }
-
-                            if ((endpoint.Subsets?.Count ?? 0) == 0)
+                            else if ((endpoint.Subsets?.Count ?? 0) == 0)
                             {
                                 _logger.LogWarning("Service has no backend endpoints. Skipping.");
                                 continue;
