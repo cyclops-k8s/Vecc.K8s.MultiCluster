@@ -60,7 +60,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Authentication
             }
 
             using var logScope = Logger.BeginScope("{clusterIdentifier}", apiKey.ClusterIdentifier);
-            Logger.LogInformation("Remote cluster authenticated");
+            Logger.LogDebug("Remote cluster authenticated");
 
             var claims = new[] { new Claim(ClaimTypes.Name, apiKey.ClusterIdentifier) };
             var identity = new ClaimsIdentity(claims, ApiAuthenticationHandlerOptions.DefaultScheme);

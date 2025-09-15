@@ -11,10 +11,14 @@ setup() {
     echo "Setting namespace"
     set_namespace failover
     (( RETCODE+=$? )) || true
+    echo "Giving it 15 seconds for the clusters to sync"
+    sleep 15
 
     use_context 2
     echo "Applying manifests"
     kubectl apply -f test2.yaml
+    echo "Giving it 15 seconds for the clusters to sync"
+    sleep 15
     RETCODE=$?
     echo "Setting namespace"
     set_namespace failover

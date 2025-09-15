@@ -310,9 +310,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             //      regardless if they are valid or not. We can then reference those cached objects to
             //      decrease the load on the kubernetes api server, instead of querying the entire cluster state
             //      we would only query the necessary services/endpoints and ingresses
-            _logger.LogInformation("Synchronizing local cluster ingress {@namespace}/{@ingress}", ingress.Namespace(), ingress.Name());
+            _logger.LogDebug("Synchronizing local cluster ingress {@namespace}/{@ingress}", ingress.Namespace(), ingress.Name());
             await SynchronizeLocalClusterAsync();
-            _logger.LogInformation("Done");
+            _logger.LogDebug("Done");
 
             return true;
         }
@@ -321,9 +321,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public async Task<bool> SynchronizeLocalServiceAsync(V1Service service)
         {
             //TODO: see SynchronizeLocalIngressAsync
-            _logger.LogInformation("Synchronizing local cluster ingress {@namespace}/{@ingress}", service.Namespace(), service.Name());
+            _logger.LogDebug("Synchronizing local cluster ingress {@namespace}/{@ingress}", service.Namespace(), service.Name());
             await SynchronizeLocalClusterAsync();
-            _logger.LogInformation("Done");
+            _logger.LogDebug("Done");
 
             return true;
         }
@@ -331,9 +331,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task<bool> SynchronizeLocalEndpointsAsync(V1Endpoints endpoints)
         {
-            _logger.LogInformation("Synchronizing local cluster ingress {@namespace}/{@ingress}", endpoints.Namespace(), endpoints.Name());
+            _logger.LogDebug("Synchronizing local cluster ingress {@namespace}/{@ingress}", endpoints.Namespace(), endpoints.Name());
             await SynchronizeLocalClusterAsync();
-            _logger.LogInformation("Done");
+            _logger.LogDebug("Done");
 
             return true;
         }

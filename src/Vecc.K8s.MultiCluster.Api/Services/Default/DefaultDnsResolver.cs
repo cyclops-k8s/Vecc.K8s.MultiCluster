@@ -61,7 +61,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _logger.LogInformation("Initializing DNS resolver.");
             await ResyncAsync();
 
-            _logger.LogInformation("Starting resyncer task for DNS resolver.");
+            _logger.LogInformation("Starting resync task for DNS resolver.");
             _resyncer = new Task(async () => await ResyncTimerAsync());
 
             if (_resyncer.Status != TaskStatus.Running)
@@ -76,7 +76,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Transaction]
         private async Task RefreshHostInformationAsync(string? hostname)
         {
-            _logger.LogInformation("{@hostname} updated, refreshing state.", hostname);
+            using var scope = _logger.BeginScope(new { hostname });
+            _logger.LogInformation("Hostname updated, refreshing state.");
+
             if (hostname == null)
             {
                 _logger.LogError("Hostname is null");
@@ -84,10 +86,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             var hostInformation = await _cache.GetHostInformationAsync(hostname);
-            if (hostInformation?.HostIPs == null || hostInformation.HostIPs.Length == 0)
+            if (hostInformation?.HostIPs == null)
             {
                 //no host information
-                _logger.LogWarning("Host information lost for {@hostname}", hostname);
+                _logger.LogWarning("Stale host found, HostIPs is null");
+                _hosts.Remove(hostname, out var _);
+                return;
+            }
+
+            if (hostInformation.HostIPs.Length == 0)
+            {
+                _logger.LogDebug("Stale host found, no ip's");
                 _hosts.Remove(hostname, out var _);
                 return;
             }
@@ -101,15 +110,16 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     if (alreadyDidCluster)
                     {
-                        _logger.LogWarning("Multiple IPs for the same cluster {@hostname} {@clusterIdentifier} {@ip} {@weight} {@priority}, skipping this one.", hostname, ip.ClusterIdentifier, ip.IPAddress, ip.Weight, ip.Priority);
+                        _logger.LogDebug("Multiple IPs for the same cluster {@clusterIdentifier} {@ip} {@weight} {@priority}, skipping this one.", ip.ClusterIdentifier, ip.IPAddress, ip.Weight, ip.Priority);
                         continue; // Skip if we already processed an IP for this cluster
                     }
                     alreadyDidCluster = true;
 
                     WeightedHostIp weightedHostIp;
+                    var cname = string.Empty;
                     if (!IPAddress.TryParse(ip.IPAddress, out var ipAddress))
                     {
-                        _logger.LogWarning("IPAddress is not parseable {@hostname} {@clusterIdentifier} {@ip}, likely should be a CNAME which isn't implemented yet.", hostname, ip.ClusterIdentifier, ip.IPAddress);
+                        cname = ip.IPAddress;
                     }
 
                     if (ip.Weight == 0)
@@ -117,6 +127,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         weightedHostIp = new WeightedHostIp
                         {
                             IP = ip,
+                            CName = cname,
                             Priority = ip.Priority,
                             WeightMin = 0,
                             WeightMax = 0
@@ -128,6 +139,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         weightedHostIp = new WeightedHostIp
                         {
                             IP = ip,
+                            CName = cname,
                             Priority = ip.Priority,
                             WeightMin = weightStart,
                             WeightMax = maxWeight
@@ -178,10 +190,22 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                 }
 
-                var record = GetIPResourceRecord(hostname, chosenHostIP.IP.IPAddress);
-                if (record != null)
+                if (chosenHostIP.CName != string.Empty)
                 {
-                    packet.AnswerRecords.Add(record);
+                    var cnameRecord = new CanonicalNameResourceRecord(
+                        hostname,
+                        new Domain(chosenHostIP.CName),
+                        TimeSpan.FromSeconds(_options.Value.DefaultRecordTTL));
+                    packet.AnswerRecords.Add(cnameRecord);
+                    return;
+                }
+                else
+                {
+                    var record = GetIPResourceRecord(hostname, chosenHostIP.IP.IPAddress);
+                    if (record != null)
+                    {
+                        packet.AnswerRecords.Add(record);
+                    }
                 }
             }
             else
@@ -270,6 +294,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             public int WeightMin { get; set; }
             public int WeightMax { get; set; }
             public HostIP IP { get; set; }
+            public string CName { get; internal set; }
         }
 
         private async Task ResyncTimerAsync()

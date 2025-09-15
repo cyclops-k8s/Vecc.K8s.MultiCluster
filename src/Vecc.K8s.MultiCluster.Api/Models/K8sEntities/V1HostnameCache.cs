@@ -16,6 +16,7 @@ namespace Vecc.K8s.MultiCluster.Api.Models.K8sEntities
         }
 
         public HostIPCache[] Addresses { get; set; } = Array.Empty<HostIPCache>();
+        public string? Hostname { get; set; }
 
         public class HostIPCache
         {
