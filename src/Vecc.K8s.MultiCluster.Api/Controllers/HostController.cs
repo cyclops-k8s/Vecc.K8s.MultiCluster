@@ -43,7 +43,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         [ProducesResponseType(500)]
         public async Task<ActionResult> UpdateHost([FromBody] HostModel model)
         {
-            _logger.LogInformation("Received host update for {@hostname}", model.Hostname);
+            using var scope = _logger.BeginScope(new { hostname = model.Hostname });
+
+            _logger.LogInformation("Received host update");
             _logger.LogDebug("Model {@model}", model);
 
             try

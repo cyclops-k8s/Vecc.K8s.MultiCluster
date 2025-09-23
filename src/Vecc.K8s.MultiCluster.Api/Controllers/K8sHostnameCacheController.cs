@@ -34,10 +34,12 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public Task DeletedAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
-            var hostname = entity.GetLabel("hostname");
-            _logger.LogInformation("Hostname cache {@namespace}/{@hostname}/{@hostname} deleted", entity.Namespace(), entity.Name(), hostname);
+
+            var hostname = entity.Hostname ?? entity.GetLabel("hostname");
+            using var _scope = _logger.BeginScope(new {@object = "hostnamecache", state="deleted", @namespace = entity.Namespace(), cluster = entity.Name(), hostname });
+            _logger.LogInformation("Deleting hostname cache");
             _queue.OnHostChangedAsync(hostname);
-            _logger.LogInformation("Host changed triggered");
+            _logger.LogInformation("Hostname cache deleted");
             return Task.CompletedTask;
         }
 
@@ -48,10 +50,11 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public Task ReconcileAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
-            var hostname = entity.GetLabel("hostname");
-            _logger.LogInformation("Hostname cache {@namespace}/{@name}/{@hostname} reconcile requested", entity.Namespace(), entity.Name(), hostname);
+            var hostname = entity.Hostname ?? entity.GetLabel("hostname");
+            using var _scope = _logger.BeginScope(new {@object = "hostnamecache", state="deleted", @namespace = entity.Namespace(), cluster = entity.Name(), hostname });
+            _logger.LogInformation("Reconciling hostname cache");
             _queue.OnHostChangedAsync(hostname);
-            _logger.LogInformation("Host changed triggered");
+            _logger.LogInformation("Hostname cache reconciled");
             return Task.CompletedTask;
         }
     }

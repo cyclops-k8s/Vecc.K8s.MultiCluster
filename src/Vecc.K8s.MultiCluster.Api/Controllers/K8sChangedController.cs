@@ -42,7 +42,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Ingress {@namespace}/{@ingress} deleted", ingress.Namespace(), ingress.Name());
+            using var _scope = _logger.BeginScope(new {@object = "ingress", state="deleted", @namespace = ingress.Namespace(), ingress = ingress.Name() });
+
+            _logger.LogInformation("Ingress deleted");
             await SyncIngressIfRequired(ingress);
         }
 
@@ -53,7 +55,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Ingress {@namespace}/{@ingress} reconcile requested", ingress.Namespace(), ingress.Name());
+            using var _scope = _logger.BeginScope(new {@object = "ingress", state="reconcile", @namespace = ingress.Namespace(), ingress = ingress.Name() });
+
+            _logger.LogInformation("Ingress reconcile requested");
             await SyncIngressIfRequired(ingress);
         }
 
@@ -64,7 +68,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task DeletedAsync(V1Service service, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Service {@namespace}/{@service} deleted", service.Namespace(), service.Name());
+            using var _scope = _logger.BeginScope(new {@object = "service", state="deleted", @namespace = service.Namespace(), service = service.Name() });
+
+            _logger.LogInformation("Service deleted");
             await SyncServiceIfRequiredAsync(service);
         }
 
@@ -75,7 +81,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task ReconcileAsync(V1Service service, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Service {@namespace}/{@service} reconcile requested", service.Namespace(), service.Name());
+            using var _scope = _logger.BeginScope(new {@object = "service", state= "reconcile", @namespace = service.Namespace(), service = service.Name() });
+
+            _logger.LogInformation("Service reconcile requested");
             await SyncServiceIfRequiredAsync(service);
         }
 
@@ -86,7 +94,9 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task DeletedAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Endpoints {@namespace}/{@endpoints} deleted", endpoints.Namespace(), endpoints.Name());
+            using var _scope = _logger.BeginScope(new {@object = "endpoints", state="deleted", @namespace = endpoints.Namespace(), endpoints = endpoints.Name() });
+
+            _logger.LogInformation("Endpoints deleted");
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
@@ -97,26 +107,30 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task ReconcileAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Endpoints {@namespace}/{@endpoints} reconcile requested", endpoints.Namespace(), endpoints.Name());
+            using var _scope = _logger.BeginScope(new {@object = "endpoints", state= "reconcile", @namespace = endpoints.Namespace(), endpoints = endpoints.Name() });
+
+            _logger.LogInformation("Endpoints reconcile requested");
             await SyncEndpointsIfRequiredAsync(endpoints);
         }
 
         /// <summary>
         /// </summary>
-        /// <param name="entity"></param>
+        /// <param name="gslb"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ReconcileAsync(V1Gslb entity, CancellationToken cancellationToken)
+        public async Task ReconcileAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("GSLB {@namespace}/{@name} reconcile requested", entity.Namespace(), entity.Name());
+            using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
+            _logger.LogInformation("GSLB reconcile requested");
 
-            if (entity.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
+            if (gslb.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
             {
-                _logger.LogInformation("GSLB {@namespace}/{@name} has ingress references, syncing", entity.Namespace(), entity.Name());
-                var ingress = await _client.GetAsync<V1Ingress>(entity.ObjectReference.Name, entity.Namespace());
+                _logger.LogDebug("GSLB has ingress references, syncing");
+                var ingress = await _client.GetAsync<V1Ingress>(gslb.ObjectReference.Name, gslb.Namespace());
                 if (ingress == null)
                 {
-                    _logger.LogError("Ingress {@namespace}/{@name} not found", entity.Namespace(), entity.Name());
+                    _logger.LogInformation("Ingress not found, resyncing entire cluster");
+                    await _synchronizer.SynchronizeLocalClusterAsync();
                 }
                 else
                 {
@@ -125,11 +139,11 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             }
             else
             {
-                _logger.LogInformation("GSLB {@namespace}/{@name} has service references, syncing", entity.Namespace(), entity.Name());
-                var service = await _client.GetAsync<V1Service>(entity.ObjectReference.Name, entity.Namespace());
+                _logger.LogInformation("GSLB has service references, syncing");
+                var service = await _client.GetAsync<V1Service>(gslb.ObjectReference.Name, gslb.Namespace());
                 if (service == null)
                 {
-                    _logger.LogError("Service {@namespace}/{@name} not found", entity.Namespace(), entity.Name());
+                    _logger.LogError("Service not found");
                 }
                 else
                 {
@@ -140,20 +154,21 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         /// <summary>
         /// </summary>
-        /// <param name="entity"></param>
+        /// <param name="gslb"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task DeletedAsync(V1Gslb entity, CancellationToken cancellationToken)
+        public async Task DeletedAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("GSLB {@namespace}/{@name} delete requested", entity.Namespace(), entity.Name());
+            using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
+            _logger.LogInformation("GSLB deleted");
 
-            if (entity.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
+            if (gslb.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
             {
-                _logger.LogInformation("GSLB {@namespace}/{@name} has ingress references, syncing", entity.Namespace(), entity.Name());
-                var ingress = await _client.GetAsync<V1Ingress>(entity.ObjectReference.Name, entity.Namespace());
+                _logger.LogInformation("GSLB has ingress references, syncing");
+                var ingress = await _client.GetAsync<V1Ingress>(gslb.ObjectReference.Name, gslb.Namespace());
                 if (ingress == null)
                 {
-                    _logger.LogInformation("Ingress {@namespace}/{@name} not found, resyncing cluster", entity.Namespace(), entity.Name());
+                    _logger.LogInformation("Ingress not found, resyncing entire cluster");
                     await _synchronizer.SynchronizeLocalClusterAsync();
                 }
                 else
@@ -163,11 +178,11 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             }
             else
             {
-                _logger.LogInformation("GSLB {@namespace}/{@name} has service references, syncing", entity.Namespace(), entity.Name());
-                var service = await _client.GetAsync<V1Service>(entity.ObjectReference.Name, entity.Namespace());
+                _logger.LogInformation("GSLB has service references, syncing");
+                var service = await _client.GetAsync<V1Service>(gslb.ObjectReference.Name, gslb.Namespace());
                 if (service == null)
                 {
-                    _logger.LogInformation("Service {@namespace}/{@name} not found, resyncing cluster", entity.Namespace(), entity.Name());
+                    _logger.LogInformation("Service not found, resyncing cluster");
                     await _synchronizer.SynchronizeLocalClusterAsync();
                 }
                 else
@@ -179,7 +194,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         private async Task SyncEndpointsIfRequiredAsync(V1Endpoints endpoints)
         {
-            _logger.LogTrace("Syncing endpoints if required {namespace}/{name}", endpoints.Namespace(), endpoints.Name());
+            _logger.LogTrace("Syncing endpoints if required");
             if (await _cache.IsServiceMonitoredAsync(endpoints.Namespace(), endpoints.Name()))
             {
                 _logger.LogTrace("Endpoint service is monitored, checking");
@@ -211,13 +226,13 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     }
                     else
                     {
-                        _logger.LogInformation("We had endpoints and we still do, not resyncing");
+                        _logger.LogDebug("We had endpoints and we still do, not resyncing");
                     }
 
                     if (doSync)
                     {
-                        _logger.LogInformation("Endpoints {@namespace}/{@endpoints} {@oldCount}->{@newCount} change requires resync",
-                            endpoints.Namespace(), endpoints.Name(), oldCount, subsetCount);
+                        _logger.LogInformation("Endpoints {@oldCount}->{@newCount} change requires resync",
+                            oldCount, subsetCount);
 
                         await _synchronizer.SynchronizeLocalEndpointsAsync(endpoints);
                     }
@@ -230,7 +245,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             var oldResourceVersion = await _cache.GetLastResourceVersionAsync(ingress.Metadata.Uid);
             if (oldResourceVersion != ingress.Metadata.ResourceVersion)
             {
-                _logger.LogInformation("Ingress {@namespace}/{@ingress} change requires resync", ingress.Namespace(), ingress.Name());
+                _logger.LogInformation("Ingress change requires resync");
                 await _synchronizer.SynchronizeLocalIngressAsync(ingress);
             }
         }
@@ -242,11 +257,10 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                 var oldResourceVersion = await _cache.GetLastResourceVersionAsync(service.Metadata.Uid);
                 if (oldResourceVersion != service.Metadata.ResourceVersion)
                 {
-                    _logger.LogInformation("Service {@namespace}/{@service} change requires resync", service.Namespace(), service.Name());
+                    _logger.LogInformation("Service change requires resync");
                     await _synchronizer.SynchronizeLocalServiceAsync(service);
                 }
             }
         }
-
     }
 }

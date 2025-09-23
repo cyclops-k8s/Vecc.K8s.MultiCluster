@@ -19,8 +19,8 @@ setup() {
     wait_for_resource pod condition=ready app=nginx
     (( RETCODE+=$? )) || true
 
-    echo "Giving it 10 seconds for the api's to register everything"
-    sleep 10
+    echo "Giving it 20 seconds for the api's to register everything"
+    sleep 20
     return $RETCODE
 }
 
