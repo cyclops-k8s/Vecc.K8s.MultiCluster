@@ -1,0 +1,18 @@
+version: 2
+
+multi-ecosystem-groups:
+  multicluster:
+    schedule:
+      interval: daily
+
+updates:
+- package-ecosystem: nuget
+  directory: /src/Vecc.K8s.MultiCluster.Api
+  patterns:
+  - "*"
+  multi-ecosystem-group: multicluster
+- package-ecosystem: dotnet-sdk
+  directory: /src/Vecc.K8s.MultiCluster.Api
+  patterns:
+  - "*"
+  multi-ecosystem-group: multicluster
