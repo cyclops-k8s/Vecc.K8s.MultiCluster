@@ -7,12 +7,12 @@ multi-ecosystem-groups:
 
 updates:
 - package-ecosystem: nuget
-  directory: /src/Vecc.K8s.MultiCluster.Api
+  directory: /
   patterns:
   - "*"
   multi-ecosystem-group: multicluster
 - package-ecosystem: dotnet-sdk
-  directory: /src/Vecc.K8s.MultiCluster.Api
+  directory: /
   patterns:
   - "*"
   multi-ecosystem-group: multicluster
