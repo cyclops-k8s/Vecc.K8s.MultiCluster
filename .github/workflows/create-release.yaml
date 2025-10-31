@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   create_release:
-    runs-on: ubuntu-latest
+    runs-on: default
 
     steps:
     - name: Checkout
