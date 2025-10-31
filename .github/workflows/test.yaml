@@ -15,13 +15,19 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: cyclops-k8s-runners
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - uses: azure/setup-helm@v4.3.0
+      name: Install Helm
     
     - name: Run tests.sh
-      run: ./test.sh
+      run: |
+        sudo apt update
+        sudo apt install -y bind9-dnsutils
+        ./test.sh
       working-directory: test
       env:
         IS_CI: "1"
