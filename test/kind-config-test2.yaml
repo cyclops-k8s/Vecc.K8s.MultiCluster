@@ -6,6 +6,8 @@ containerdConfigPatches:
     config_path = "/etc/containerd/certs.d"
 networking:
   ipFamily: ipv4
+  podSubnet: 10.130.0.0/17
+  serviceSubnet: 10.130.128.0/17
 nodes:
 - role: control-plane
   extraPortMappings:
