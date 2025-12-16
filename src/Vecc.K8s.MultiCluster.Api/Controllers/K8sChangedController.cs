@@ -1,5 +1,4 @@
 ﻿using k8s.Models;
-using KubeOps.Abstractions;
 using KubeOps.Abstractions.Rbac;
 using KubeOps.Abstractions.Reconciliation;
 using KubeOps.Abstractions.Reconciliation.Controller;

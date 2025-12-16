@@ -61,7 +61,7 @@ namespace Vecc.IngressOperator
             if (entity.Namespace() == "kube-system")
             {
                 _logger.LogInformation("Ignoring service in kube-system namespace");
-                return null;
+                return ReconciliationResult<V1Service>.Success(entity);
             }
 
             if ((entity.Status?.LoadBalancer?.Ingress?.Count ?? 0) == 0)
