@@ -9,7 +9,7 @@ setup() {
     kubectl apply -f test1.yaml
     RETCODE=$?
     echo "Setting namespace"
-    set_namespace test-in-both-equal-weight
+    set_namespace service-test-in-both-equal-weight
     (( RETCODE+=$? )) || true
 
     use_context 2
@@ -17,7 +17,7 @@ setup() {
     kubectl apply -f test2.yaml
     RETCODE=$?
     echo "Setting namespace"
-    set_namespace test-in-both-equal-weight
+    set_namespace service-test-in-both-equal-weight
     (( RETCODE+=$? )) || true
 
     use_context 1
@@ -120,11 +120,11 @@ assert() {
 
 cleanup() {
     use_context 1
-    kubectl delete namespace test-in-both-equal-weight
+    kubectl delete namespace service-test-in-both-equal-weight
     RESULT=$?
 
     use_context 2
-    kubectl delete namespace test-in-both-equal-weight
+    kubectl delete namespace service-test-in-both-equal-weight
     (( RESULT+=$? )) || true
 
     return $?
