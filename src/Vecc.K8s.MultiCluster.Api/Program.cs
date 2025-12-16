@@ -1,10 +1,9 @@
 using Destructurama;
-using Grpc.Core;
-using Grpc.Core.Interceptors;
 using k8s.Models;
+using KubeOps.Abstractions.Builder;
 using KubeOps.KubernetesClient;
 using KubeOps.Operator;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Serilog;
 using Vecc.K8s.MultiCluster.Api.Controllers;
@@ -58,8 +57,10 @@ if (args.Contains(OperatorFlag))
     builder.Services.AddSingleton<OperatorLeader>();
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.AutoAttachFinalizers = false;
+        operatorSettings.AutoDetachFinalizers = false;
         operatorSettings.Name = "operator";
-        operatorSettings.EnableLeaderElection = true;
+        operatorSettings.LeaderElectionType = LeaderElectionType.Single;
     })
         .AddController<K8sChangedController, V1Ingress>()
         .AddController<K8sChangedController, V1Service>()
@@ -71,9 +72,11 @@ else if (args.Contains(OrchestratorFlag))
     builder.Services.AddSingleton<OrchestratorLeader>();
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.AutoAttachFinalizers = false;
+        operatorSettings.AutoDetachFinalizers = false;
         operatorSettings.Name = "orchestrator";
         operatorSettings.Namespace = options.Namespace;
-        operatorSettings.EnableLeaderElection = true;
+        operatorSettings.LeaderElectionType = LeaderElectionType.Single;
     })
         .AddController<K8sClusterCacheController, V1ClusterCache>();
 }
@@ -81,8 +84,11 @@ else if (args.Contains(DnsServerFlag))
 {
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.AutoAttachFinalizers = false;
+        operatorSettings.AutoDetachFinalizers = false;
         operatorSettings.Name = "dnsserver";
         operatorSettings.Namespace = options.Namespace;
+        operatorSettings.LeaderElectionType = LeaderElectionType.None;
     })
         .AddController<K8sHostnameCacheController, V1HostnameCache>();
 
@@ -123,18 +129,11 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    var securityScheme = new OpenApiSecurityScheme
-    {
+    options.AddSecurityDefinition("X-Api-Key", new OpenApiSecurityScheme{
         In = ParameterLocation.Header,
         Name = "X-Api-Key",
-        Type = SecuritySchemeType.ApiKey,
-        Reference = new OpenApiReference
-        {
-            Type = ReferenceType.SecurityScheme,
-            Id = ApiAuthenticationHandlerOptions.DefaultScheme
-        },
-    };
-    options.AddSecurityDefinition(ApiAuthenticationHandlerOptions.DefaultScheme, securityScheme);
+        Type = SecuritySchemeType.ApiKey
+    });
     options.IncludeXmlComments(typeof(Program).Assembly);
     options.OperationFilter<SwaggerOperationFilter>();
 });

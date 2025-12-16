@@ -672,7 +672,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                         metadata.Name = GenerateName(namespaceName + "." + name);
                         metadata.SetNamespace(_options.Value.Namespace);
-                        serviceCache.Service = new V1ObjectReference(name: name, namespaceProperty: namespaceName);
+                        serviceCache.Service = new V1ObjectReference
+                        {
+                            Name = name,
+                            NamespaceProperty = namespaceName
+                        };
                         await _kubernetesClient.CreateAsync(serviceCache);
 
                         return serviceCache;

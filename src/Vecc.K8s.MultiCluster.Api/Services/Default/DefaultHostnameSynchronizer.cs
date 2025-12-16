@@ -85,7 +85,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
                 _logger.LogTrace("Getting ingresses, services, endpoints and gslbs");
                 await Task.WhenAll(
-                    Task.Run(async () => myHosts = (await _cache.GetHostsAsync(_multiClusterOptions.Value.ClusterIdentifier) ?? Array.Empty<Models.Core.Host>())),
+                    Task.Run(async () => myHosts = await _cache.GetHostsAsync(_multiClusterOptions.Value.ClusterIdentifier) ?? Array.Empty<Models.Core.Host>()),
                     Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync()),
                     Task.Run(async () => services = await _serviceManager.GetServicesAsync()),
                     Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync()),
@@ -229,14 +229,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                                 continue;
                             }
 
-                            ipAddresses[gslb.Key] = gslbServices.Select(s =>
-                                new HostIP
-                                {
-                                    IPAddress = s.Status.LoadBalancer.Ingress.First().Ip,
-                                    Priority = gslb.Value.Max(x => x.Priority),
-                                    Weight = gslb.Value.Max(x => x.Weight),
-                                    ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
-                                }).ToList();
+                            ipAddresses[gslb.Key] = gslbServices
+                                .Where(s=> s?.Status?.LoadBalancer?.Ingress != null)
+                                .Select(s =>
+                                    new HostIP
+                                    {
+                                        IPAddress = s.Status.LoadBalancer.Ingress.First().Ip,
+                                        Priority = gslb.Value.Max(x => x.Priority),
+                                        Weight = gslb.Value.Max(x => x.Weight),
+                                        ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
+                                    })
+                                .ToList();
                         }
                         else if (gslb.Value.All(x => x.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress))
                         {
@@ -249,14 +252,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             }
                             _logger.LogTrace("Found valid ingresses: {@ingresses}", gslbIngresses.Select(s => s.Metadata.NamespaceProperty + "/" + s.Metadata.Name));
 
-                            ipAddresses[gslb.Key] = gslbIngresses.Select(s =>
-                                new HostIP
-                                {
-                                    IPAddress = s.Status.LoadBalancer.Ingress.First().Ip,
-                                    Priority = gslb.Value.Max(x => x.Priority),
-                                    Weight = gslb.Value.Max(x => x.Weight),
-                                    ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
-                                }).ToList();
+                            ipAddresses[gslb.Key] = gslbIngresses
+                                .Where(s => s?.Status?.LoadBalancer?.Ingress != null)
+                                .Select(s =>
+                                    new HostIP
+                                    {
+                                        IPAddress = s.Status.LoadBalancer.Ingress.First().Ip,
+                                        Priority = gslb.Value.Max(x => x.Priority),
+                                        Weight = gslb.Value.Max(x => x.Weight),
+                                        ClusterIdentifier = _multiClusterOptions.Value.ClusterIdentifier
+                                    })
+                                .ToList();
                         }
                         else
                         {

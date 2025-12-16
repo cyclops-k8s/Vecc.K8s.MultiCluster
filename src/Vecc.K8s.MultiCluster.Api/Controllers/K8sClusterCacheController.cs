@@ -1,5 +1,6 @@
 ﻿using k8s.Models;
-using KubeOps.Abstractions.Controller;
+using KubeOps.Abstractions.Reconciliation;
+using KubeOps.Abstractions.Reconciliation.Controller;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
 
@@ -16,7 +17,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="entity"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task DeletedAsync(V1ClusterCache entity, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1ClusterCache>> DeletedAsync(V1ClusterCache entity, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "clustercache", state="deleted", @namespace = entity.Namespace(), cluster = entity.Name() });
             _logger.LogInformation("Deleting cluster cache");
@@ -29,6 +30,8 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                 _logger.LogError(ex, "Error synchronizing clusters");
             }
             _logger.LogInformation("Cluster cache deleted");
+
+            return ReconciliationResult<V1ClusterCache>.Success(entity);
         }
 
         /// <summary>
@@ -36,7 +39,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="entity"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ReconcileAsync(V1ClusterCache entity, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1ClusterCache>> ReconcileAsync(V1ClusterCache entity, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "clustercache", state="reconcile", @namespace = entity.Namespace(), cluster = entity.Name() });
             _logger.LogInformation("Reconciling cluster cache");
@@ -49,6 +52,8 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                 _logger.LogError(ex, "Error synchronizing remote clusters");
             }
             _logger.LogInformation("Reconciled cluster cache");
+
+            return ReconciliationResult<V1ClusterCache>.Success(entity);
         }
     }
 }

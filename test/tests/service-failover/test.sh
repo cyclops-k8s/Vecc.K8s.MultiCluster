@@ -9,19 +9,15 @@ setup() {
     kubectl apply -f test1.yaml
     RETCODE=$?
     echo "Setting namespace"
-    set_namespace failover
+    set_namespace service-failover
     (( RETCODE+=$? )) || true
-    echo "Giving it 15 seconds for the clusters to sync"
-    sleep 15
 
     use_context 2
     echo "Applying manifests"
     kubectl apply -f test2.yaml
-    echo "Giving it 15 seconds for the clusters to sync"
-    sleep 15
     RETCODE=$?
     echo "Setting namespace"
-    set_namespace failover
+    set_namespace service-failover
     (( RETCODE+=$? )) || true
 
     use_context 1
@@ -131,7 +127,7 @@ assert() {
     fi
 
     use_context 2
-    set_namespace failover
+    set_namespace service-failover
     echo "Started deletion of deployment at $(date)"
     kubectl delete deployment test
     echo "Deleted deployment at $(date)"
@@ -219,11 +215,11 @@ assert() {
 
 cleanup() {
     use_context 1
-    kubectl delete namespace failover
+    kubectl delete namespace service-failover
     RESULT=$?
 
     use_context 2
-    kubectl delete namespace failover
+    kubectl delete namespace service-failover
     (( RESULT+=$? )) || true
 
     return $?

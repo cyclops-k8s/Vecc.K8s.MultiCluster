@@ -12,7 +12,7 @@ setup() {
     sleep 1
 
     echo "Setting namespace"
-    set_namespace only-in-test2
+    set_namespace service-only-in-test2
     (( RETCODE+=$? )) || true
 
     echo "Waiting for resource"
@@ -46,7 +46,7 @@ assert() {
 }
 
 cleanup() {
-    kubectl delete namespace only-in-test2
+    kubectl delete namespace service-only-in-test2
     
     return $?
 }

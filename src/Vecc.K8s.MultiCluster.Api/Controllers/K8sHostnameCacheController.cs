@@ -1,6 +1,7 @@
 ﻿using k8s.Models;
-using KubeOps.Abstractions.Controller;
 using KubeOps.Abstractions.Rbac;
+using KubeOps.Abstractions.Reconciliation;
+using KubeOps.Abstractions.Reconciliation.Controller;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services.Default;
 
@@ -32,7 +33,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="entity"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public Task DeletedAsync(V1HostnameCache entity, CancellationToken cancellationToken)
+        public Task<ReconciliationResult<V1HostnameCache>> DeletedAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
 
             var hostname = entity.Hostname ?? entity.GetLabel("hostname");
@@ -40,7 +41,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             _logger.LogInformation("Deleting hostname cache");
             _queue.OnHostChangedAsync(hostname);
             _logger.LogInformation("Hostname cache deleted");
-            return Task.CompletedTask;
+            return Task.FromResult(ReconciliationResult<V1HostnameCache>.Success(entity));
         }
 
         /// <summary>
@@ -48,14 +49,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="entity"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public Task ReconcileAsync(V1HostnameCache entity, CancellationToken cancellationToken)
+        public Task<ReconciliationResult<V1HostnameCache>> ReconcileAsync(V1HostnameCache entity, CancellationToken cancellationToken)
         {
             var hostname = entity.Hostname ?? entity.GetLabel("hostname");
             using var _scope = _logger.BeginScope(new {@object = "hostnamecache", state="deleted", @namespace = entity.Namespace(), cluster = entity.Name(), hostname });
             _logger.LogInformation("Reconciling hostname cache");
             _queue.OnHostChangedAsync(hostname);
             _logger.LogInformation("Hostname cache reconciled");
-            return Task.CompletedTask;
+            return Task.FromResult(ReconciliationResult<V1HostnameCache>.Success(entity));
         }
     }
 }

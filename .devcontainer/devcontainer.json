@@ -1,0 +1,42 @@
+{
+	"name": "Vecc.K8s.MultiCluster",
+	"image": "mcr.microsoft.com/devcontainers/dotnet:10.0",
+	
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"version": "latest",
+			"dockerDashComposeVersion": "v2"
+		},
+		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+			"version": "latest",
+			"helm": "latest",
+			"minikube": "none"
+		}
+	},
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"editorconfig.editorconfig",
+				"ms-dotnettools.csharp",
+				"ms-dotnettools.csdevkit",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"ms-azuretools.vscode-docker",
+				"redhat.vscode-yaml"
+			],
+			"settings": {
+				"dotnet.server.useOmnisharp": false
+			}
+		}
+	},
+
+	"forwardPorts": [5000, 5001],
+
+	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y dnsutils kubectx",
+
+	"remoteUser": "vscode",
+
+	"mounts": [
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly,type=bind"
+	]
+}

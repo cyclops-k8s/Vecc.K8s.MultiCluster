@@ -118,6 +118,13 @@ do
     sleep 1
 done
 
+echo_color "${G}Removing test ingresses"
+use_context 1
+kubectl delete ingress -n mcingress-operator mcingress
+
+use_context 2
+kubectl delete ingress -n mcingress-operator mcingress
+
 export CLUSTER1IP="192.168.0.1"
 export CLUSTER2IP="192.168.0.2"
 
