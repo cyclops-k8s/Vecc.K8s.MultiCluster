@@ -1,13 +1,9 @@
 using Destructurama;
-using Grpc.Core;
-using Grpc.Core.Interceptors;
 using k8s.Models;
 using KubeOps.Abstractions.Builder;
 using KubeOps.KubernetesClient;
 using KubeOps.Operator;
 using Microsoft.OpenApi;
-
-// using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Serilog;
 using Vecc.K8s.MultiCluster.Api.Controllers;
@@ -61,6 +57,8 @@ if (args.Contains(OperatorFlag))
     builder.Services.AddSingleton<OperatorLeader>();
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.AutoAttachFinalizers = false;
+        operatorSettings.AutoDetachFinalizers = false;
         operatorSettings.Name = "operator";
         operatorSettings.LeaderElectionType = LeaderElectionType.Single;
     })
@@ -74,6 +72,8 @@ else if (args.Contains(OrchestratorFlag))
     builder.Services.AddSingleton<OrchestratorLeader>();
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.AutoAttachFinalizers = false;
+        operatorSettings.AutoDetachFinalizers = false;
         operatorSettings.Name = "orchestrator";
         operatorSettings.Namespace = options.Namespace;
         operatorSettings.LeaderElectionType = LeaderElectionType.Single;
@@ -84,6 +84,8 @@ else if (args.Contains(DnsServerFlag))
 {
     builder.Services.AddKubernetesOperator((operatorSettings) =>
     {
+        operatorSettings.AutoAttachFinalizers = false;
+        operatorSettings.AutoDetachFinalizers = false;
         operatorSettings.Name = "dnsserver";
         operatorSettings.Namespace = options.Namespace;
         operatorSettings.LeaderElectionType = LeaderElectionType.None;

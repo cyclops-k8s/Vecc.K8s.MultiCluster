@@ -1,16 +1,14 @@
-﻿using IdentityModel;
-using k8s;
-using k8s.Models;
+﻿using k8s.Models;
+using KubeOps.Abstractions.Rbac;
+using KubeOps.Abstractions.Reconciliation;
+using KubeOps.Abstractions.Reconciliation.Controller;
 using KubeOps.KubernetesClient;
-using KubeOps.Operator.Controller;
-using KubeOps.Operator.Controller.Results;
-using KubeOps.Operator.Rbac;
 
 namespace Vecc.IngressOperator
 {
     [EntityRbac(typeof(V1Ingress), Verbs = RbacVerb.All)]
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.All)]
-    public class IngressModifier : IResourceController<V1Ingress>, IResourceController<V1Service>
+    public class IngressModifier : IEntityController<V1Ingress>, IEntityController<V1Service>
     {
         private readonly IKubernetesClient _kubernetes;
         private readonly ILogger<IngressModifier> _logger;
@@ -21,7 +19,10 @@ namespace Vecc.IngressOperator
             _logger = logger;
         }
 
-        public async Task<ResourceControllerResult?> ReconcileAsync(V1Ingress entity)
+        public Task<ReconciliationResult<V1Ingress>> DeletedAsync(V1Ingress entity, CancellationToken cancellationToken)
+            => Task.FromResult(ReconciliationResult<V1Ingress>.Success(entity));
+
+        public async Task<ReconciliationResult<V1Ingress>> ReconcileAsync(V1Ingress entity, CancellationToken cancellationToken)
         {
             if ((entity.Status?.LoadBalancer?.Ingress?.Count ?? 0) == 0)
             {
@@ -40,7 +41,7 @@ namespace Vecc.IngressOperator
                     }
                 };
 
-                await _kubernetes.UpdateStatus(entity);
+                await _kubernetes.UpdateStatusAsync(entity);
 
                 _logger.LogInformation("Load balancer status updated");
             }
@@ -49,10 +50,13 @@ namespace Vecc.IngressOperator
                 _logger.LogInformation("Load balancer status already set, ignoring");
             }
 
-            return null;
+            return ReconciliationResult<V1Ingress>.Success(entity);
         }
 
-        public async Task<ResourceControllerResult?> ReconcileAsync(V1Service entity)
+        public Task<ReconciliationResult<V1Service>> DeletedAsync(V1Service entity, CancellationToken cancellationToken)
+            => Task.FromResult(ReconciliationResult<V1Service>.Success(entity));
+
+        public async Task<ReconciliationResult<V1Service>> ReconcileAsync(V1Service entity, CancellationToken cancellationToken)
         {
             if (entity.Namespace() == "kube-system")
             {
@@ -77,7 +81,7 @@ namespace Vecc.IngressOperator
                     }
                 };
 
-                await _kubernetes.UpdateStatus(entity);
+                await _kubernetes.UpdateStatusAsync(entity);
 
                 _logger.LogInformation("Service status updated");
             }
@@ -86,7 +90,7 @@ namespace Vecc.IngressOperator
                 _logger.LogInformation("Service status already set, ignoring");
             }
 
-            return null;
+            return ReconciliationResult<V1Service>.Success(entity);
         }
     }
 }
