@@ -1,6 +1,8 @@
 ﻿using k8s.Models;
-using KubeOps.Abstractions.Controller;
+using KubeOps.Abstractions;
 using KubeOps.Abstractions.Rbac;
+using KubeOps.Abstractions.Reconciliation;
+using KubeOps.Abstractions.Reconciliation.Controller;
 using KubeOps.KubernetesClient;
 using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 using Vecc.K8s.MultiCluster.Api.Services;
@@ -40,12 +42,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="ingress"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Ingress>> DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "ingress", state="deleted", @namespace = ingress.Namespace(), ingress = ingress.Name() });
 
             _logger.LogInformation("Ingress deleted");
             await SyncIngressIfRequired(ingress);
+
+            return ReconciliationResult<V1Ingress>.Success(ingress);
         }
 
         /// <summary>
@@ -53,12 +57,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="ingress"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Ingress>> ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "ingress", state="reconcile", @namespace = ingress.Namespace(), ingress = ingress.Name() });
 
             _logger.LogInformation("Ingress reconcile requested");
             await SyncIngressIfRequired(ingress);
+
+            return ReconciliationResult<V1Ingress>.Success(ingress);
         }
 
         /// <summary>
@@ -66,12 +72,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="service"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task DeletedAsync(V1Service service, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Service>> DeletedAsync(V1Service service, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "service", state="deleted", @namespace = service.Namespace(), service = service.Name() });
 
             _logger.LogInformation("Service deleted");
             await SyncServiceIfRequiredAsync(service);
+
+            return ReconciliationResult<V1Service>.Success(service);
         }
 
         /// <summary>
@@ -79,12 +87,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="service"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ReconcileAsync(V1Service service, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Service>> ReconcileAsync(V1Service service, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "service", state= "reconcile", @namespace = service.Namespace(), service = service.Name() });
 
             _logger.LogInformation("Service reconcile requested");
             await SyncServiceIfRequiredAsync(service);
+
+            return ReconciliationResult<V1Service>.Success(service);
         }
 
         /// <summary>
@@ -92,12 +102,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="endpoints"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task DeletedAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Endpoints>> DeletedAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "endpoints", state="deleted", @namespace = endpoints.Namespace(), endpoints = endpoints.Name() });
 
             _logger.LogInformation("Endpoints deleted");
             await SyncEndpointsIfRequiredAsync(endpoints);
+
+            return ReconciliationResult<V1Endpoints>.Success(endpoints);
         }
 
         /// <summary>
@@ -105,12 +117,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="endpoints"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ReconcileAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Endpoints>> ReconcileAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "endpoints", state= "reconcile", @namespace = endpoints.Namespace(), endpoints = endpoints.Name() });
 
             _logger.LogInformation("Endpoints reconcile requested");
             await SyncEndpointsIfRequiredAsync(endpoints);
+
+            return ReconciliationResult<V1Endpoints>.Success(endpoints);
         }
 
         /// <summary>
@@ -118,7 +132,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="gslb"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task ReconcileAsync(V1Gslb gslb, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Gslb>> ReconcileAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
             _logger.LogInformation("GSLB reconcile requested");
@@ -150,6 +164,8 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     await _synchronizer.SynchronizeLocalServiceAsync(service);
                 }
             }
+
+            return ReconciliationResult<V1Gslb>.Success(gslb);
         }
 
         /// <summary>
@@ -157,7 +173,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="gslb"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task DeletedAsync(V1Gslb gslb, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1Gslb>> DeletedAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
             using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
             _logger.LogInformation("GSLB deleted");
@@ -190,6 +206,8 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     await _synchronizer.SynchronizeLocalServiceAsync(service);
                 }
             }
+
+            return ReconciliationResult<V1Gslb>.Success(gslb);
         }
 
         private async Task SyncEndpointsIfRequiredAsync(V1Endpoints endpoints)
