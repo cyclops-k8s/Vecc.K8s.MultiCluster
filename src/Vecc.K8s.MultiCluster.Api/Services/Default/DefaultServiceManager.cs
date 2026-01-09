@@ -7,6 +7,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
     public class DefaultServiceManager : IServiceManager
     {
+        private const string ServiceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<DefaultServiceManager> _logger;
         private readonly IKubernetesClient _kubernetesClient;
         private readonly INamespaceManager _namespaceManager;
@@ -30,24 +31,29 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public Task<List<V1Service>> GetLoadBalancerServicesAsync(IList<V1Service> services, IList<V1Endpoints> endpoints)
+        public Task<List<V1Service>> GetLoadBalancerServicesAsync(IList<V1Service> services, IList<V1EndpointSlice> endpointSlices)
         {
             _logger.LogDebug("Finding valid load balancer services");
             var result = new List<V1Service>();
             var loadBalancerServices = services.Where(service => service.Spec.Type == "LoadBalancer").ToList();
 
-            var namespacedEndpoints = endpoints.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
-            var namespacedServices = loadBalancerServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
+            // Group endpoint slices by namespace and service name (from label)
+            var namespacedEndpointSlices = endpointSlices
+                .GroupBy(x => x.Metadata.NamespaceProperty)
+                .ToDictionary(x => x.Key!, x => x
+                    .GroupBy(s => s.GetLabel(ServiceNameLabel) ?? "")
+                    .ToDictionary(s => s.Key, s => s.ToList()));
+            var namespacedServices = loadBalancerServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
 
             foreach (var serviceEntry in namespacedServices)
             {
                 _logger.LogDebug("Checking load balancer service namespace: {@namespace}", serviceEntry.Key);
 
-                if (!namespacedEndpoints.TryGetValue(serviceEntry.Key, out var serviceEndpoints))
+                if (!namespacedEndpointSlices.TryGetValue(serviceEntry.Key, out var namespaceSlices))
                 {
                     foreach (var service in serviceEntry.Value)
                     {
-                        _logger.LogDebug("Missing endpoints in namespace {@namespace} for {@service}", serviceEntry.Key, service.Name());
+                        _logger.LogDebug("Missing endpoint slices in namespace {@namespace} for {@service}", serviceEntry.Key, service.Name());
                     }
                 }
                 else
@@ -56,26 +62,20 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     {
                         using var scope = _logger.BeginScope("{@namespace}/{@service}", service.Namespace(), service.Name());
 
-                        var serviceEndpoint = serviceEndpoints.SingleOrDefault(endpoint => endpoint.Name() == service.Name());
-                        if (serviceEndpoint == null)
+                        if (!namespaceSlices.TryGetValue(service.Name(), out var serviceSlices) || serviceSlices.Count == 0)
                         {
-                            _logger.LogWarning("Missing endpoint in namespace {@namespace} for {@service}, skipping.", service.Namespace(), service.Name());
+                            _logger.LogWarning("Missing endpoint slice in namespace {@namespace} for {@service}, skipping.", service.Namespace(), service.Name());
                             continue;
                         }
 
-                        if (serviceEndpoint.Subsets == null)
-                        {
-                            _logger.LogWarning("Subsets missing in service endpoint {@namespace}/{@service}, skipping.", service.Namespace(), service.Name());
-                            continue;
-                        }
-
-                        if (serviceEndpoint.Subsets.Count == 0)
+                        var readyEndpointCount = GetReadyEndpointCount(serviceSlices);
+                        if (readyEndpointCount == 0)
                         {
                             _logger.LogWarning("Service has no available backend {@namespace}/{@service}, skipping.", service.Namespace(), service.Name());
                             continue;
                         }
 
-                        _logger.LogDebug("Service has {@count} available backends", serviceEndpoint.Subsets.Count);
+                        _logger.LogDebug("Service has {@count} available backends", readyEndpointCount);
                         result.Add(service);
                     }
                 }
@@ -85,14 +85,22 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<IList<V1Endpoints>> GetEndpointsAsync()
+        public async Task<IList<V1EndpointSlice>> GetEndpointSlicesAsync()
         {
-            _logger.LogDebug("Getting endpoints in the cluster");
+            _logger.LogDebug("Getting endpoint slices in the cluster");
 
-            var result = await _kubernetesClient.ListAsync<V1Endpoints>();
-            _logger.LogDebug("Done getting endpoints {count}", result.Count);
+            var result = await _kubernetesClient.ListAsync<V1EndpointSlice>();
+            _logger.LogDebug("Done getting endpoint slices {count}", result.Count);
 
             return result;
+        }
+
+        /// <inheritdoc/>
+        public int GetReadyEndpointCount(IEnumerable<V1EndpointSlice> slices)
+        {
+            return slices
+                .SelectMany(s => s.Endpoints ?? Enumerable.Empty<V1Endpoint>())
+                .Count(e => e.Conditions?.Ready == true);
         }
     }
 }

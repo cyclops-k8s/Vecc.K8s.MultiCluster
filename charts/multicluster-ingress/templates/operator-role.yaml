@@ -29,12 +29,25 @@ rules:
   - '*'
 - apiGroups:
   - networking.k8s.io
-  - ""
   resources:
   - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
-  - endpoints
   - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
   verbs:
   - get
   - list

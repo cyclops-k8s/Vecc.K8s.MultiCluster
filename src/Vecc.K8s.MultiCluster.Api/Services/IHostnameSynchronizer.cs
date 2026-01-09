@@ -6,7 +6,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services
     {
         Task ClusterHeartbeatAsync();
         Task SynchronizeLocalClusterAsync();
-        Task<bool> SynchronizeLocalEndpointsAsync(V1Endpoints endpoints);
+        Task<bool> SynchronizeLocalEndpointSliceAsync(V1EndpointSlice endpointSlice);
         Task<bool> SynchronizeLocalIngressAsync(V1Ingress ingress);
         Task<bool> SynchronizeLocalServiceAsync(V1Service service);
         Task SynchronizeRemoteClustersAsync();
