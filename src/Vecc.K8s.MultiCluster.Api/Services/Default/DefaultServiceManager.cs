@@ -7,7 +7,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
     public class DefaultServiceManager : IServiceManager
     {
-        private const string ServiceNameLabel = "kubernetes.io/service-name";
+        private const string _serviceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<DefaultServiceManager> _logger;
         private readonly IKubernetesClient _kubernetesClient;
         private readonly INamespaceManager _namespaceManager;
@@ -41,7 +41,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var namespacedEndpointSlices = endpointSlices
                 .GroupBy(x => x.Metadata.NamespaceProperty)
                 .ToDictionary(x => x.Key!, x => x
-                    .GroupBy(s => s.GetLabel(ServiceNameLabel) ?? "")
+                    .GroupBy(s => s.GetLabel(_serviceNameLabel) ?? "")
                     .ToDictionary(s => s.Key, s => s.ToList()));
             var namespacedServices = loadBalancerServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
 

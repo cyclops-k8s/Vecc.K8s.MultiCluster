@@ -7,7 +7,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
     public class DefaultIngressManager : IIngressManager
     {
-        private const string ServiceNameLabel = "kubernetes.io/service-name";
+        private const string _serviceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<DefaultIngressManager> _logger;
         private readonly IKubernetesClient _kubernetesClient;
         private readonly INamespaceManager _namespaceManager;
@@ -46,7 +46,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var namespacedEndpointSlices = allEndpointSlices
                 .GroupBy(x => x.Metadata.NamespaceProperty)
                 .ToDictionary(x => x.Key!, x => x
-                    .GroupBy(s => s.GetLabel(ServiceNameLabel) ?? "")
+                    .GroupBy(s => s.GetLabel(_serviceNameLabel) ?? "")
                     .ToDictionary(s => s.Key, s => s.ToList()));
             var namespacedServices = allServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
 
@@ -117,7 +117,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             // Convert list to dictionary by service name for efficient lookup
             var endpointSlicesByService = endpointSlices
-                .GroupBy(s => s.GetLabel(ServiceNameLabel) ?? "")
+                .GroupBy(s => s.GetLabel(_serviceNameLabel) ?? "")
                 .ToDictionary(s => s.Key, s => s.ToList());
             return IsIngressValid(ingress, services, endpointSlicesByService);
         }

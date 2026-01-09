@@ -17,7 +17,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
     [EntityRbac(typeof(V1Namespace), Verbs = RbacVerb.List | RbacVerb.Get)]
     public class K8sChangedController : IEntityController<V1Ingress>, IEntityController<V1Service>, IEntityController<V1EndpointSlice>, IEntityController<V1Gslb>
     {
-        private const string ServiceNameLabel = "kubernetes.io/service-name";
+        private const string _serviceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<K8sChangedController> _logger;
         private readonly ICache _cache;
         private readonly IHostnameSynchronizer _synchronizer;
@@ -104,7 +104,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1EndpointSlice>> DeletedAsync(V1EndpointSlice endpointSlice, CancellationToken cancellationToken)
         {
-            var serviceName = endpointSlice.GetLabel(ServiceNameLabel) ?? endpointSlice.Name();
+            var serviceName = endpointSlice.GetLabel(_serviceNameLabel) ?? endpointSlice.Name();
             using var _scope = _logger.BeginScope(new {@object = "endpointslice", state="deleted", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
 
             _logger.LogInformation("EndpointSlice deleted");
@@ -120,7 +120,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1EndpointSlice>> ReconcileAsync(V1EndpointSlice endpointSlice, CancellationToken cancellationToken)
         {
-            var serviceName = endpointSlice.GetLabel(ServiceNameLabel) ?? endpointSlice.Name();
+            var serviceName = endpointSlice.GetLabel(_serviceNameLabel) ?? endpointSlice.Name();
             using var _scope = _logger.BeginScope(new {@object = "endpointslice", state= "reconcile", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
 
             _logger.LogInformation("EndpointSlice reconcile requested");
