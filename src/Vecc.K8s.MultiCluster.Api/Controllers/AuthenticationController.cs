@@ -47,7 +47,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                 clusterIdentifier = Guid.NewGuid().ToString();
             }
 
-            var nextIndex = (_authOptions.Value.ApiKeys?.Length ?? 0);
+            var nextIndex = _authOptions.Value.ApiKeys?.Length ?? 0;
             var key = Guid.NewGuid().ToString();
             var hash = await _hasher.GetHashAsync(key);
             var result = new NewAuthModel();
