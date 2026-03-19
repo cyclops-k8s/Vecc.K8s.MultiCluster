@@ -10,6 +10,5 @@ namespace Vecc.K8s.MultiCluster.Api.Services
             IList<V1EndpointSlice> endpointSlices);
         Task<IList<V1Ingress>> GetIngressesAsync();
         Task<IList<string>> GetRelatedServiceNamesAsync(V1Ingress ingress);
-        bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, IList<V1EndpointSlice> endpointSlices);
     }
 }

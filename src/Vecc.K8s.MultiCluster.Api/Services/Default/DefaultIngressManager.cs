@@ -23,7 +23,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         [Trace]
         public async Task<IList<V1Ingress>> GetIngressesAsync()
-        {   _logger.LogDebug("Getting ingress objects in the cluster");
+        {
+            _logger.LogDebug("Getting ingress objects in the cluster");
 
             var result = await _kubernetesClient.ListAsync<V1Ingress>();
             _logger.LogDebug("Done getting ingress objects: {count}", result.Count);
@@ -44,9 +45,10 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var namespacedIngresses = allIngresses.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
             // Group endpoint slices by namespace and service name
             var namespacedEndpointSlices = allEndpointSlices
+                .Where(slice => slice.GetLabel(_serviceNameLabel) != null)
                 .GroupBy(x => x.Metadata.NamespaceProperty)
                 .ToDictionary(x => x.Key!, x => x
-                    .GroupBy(s => s.GetLabel(_serviceNameLabel) ?? "")
+                    .GroupBy(s => s.GetLabel(_serviceNameLabel)!)
                     .ToDictionary(s => s.Key, s => s.ToList()));
             var namespacedServices = allServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
 
@@ -110,16 +112,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             return Task.FromResult(result);
-        }
-
-        [Trace]
-        public bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, IList<V1EndpointSlice> endpointSlices)
-        {
-            // Convert list to dictionary by service name for efficient lookup
-            var endpointSlicesByService = endpointSlices
-                .GroupBy(s => s.GetLabel(_serviceNameLabel) ?? "")
-                .ToDictionary(s => s.Key, s => s.ToList());
-            return IsIngressValid(ingress, services, endpointSlicesByService);
         }
 
         private bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, Dictionary<string, List<V1EndpointSlice>> endpointSlicesByService)
