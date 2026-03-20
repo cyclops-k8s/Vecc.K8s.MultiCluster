@@ -230,9 +230,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                     var doSync = false;
 
                     // Count ready endpoints for the service across all its endpoint slices.
-                    var readyEndpointCount = currentEndpointsForService
-                        .SelectMany(s => s.Endpoints.Where(e => e.Conditions?.Ready == true))
-                        .Count();
+                    var readyEndpointCount = _serviceManager.GetReadyEndpointCount(currentEndpointsForService);
 
                     // resource version will change as pods start/stop/delete/create, check to see if we need to resync
                     // we only need to resync if pod count is 0 and now we have pods, or if pod count was not 0 and now we don't

@@ -204,11 +204,13 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
                     new V1Endpoint { Conditions = new V1EndpointConditions { Ready = true } }
                 }
             };
+            var endpointList = new List<V1EndpointSlice>{ endpointSlice };
             _cacheMock.Setup(x => x.IsServiceMonitoredAsync("default", "my-svc")).ReturnsAsync(true);
             _cacheMock.Setup(x => x.GetLastResourceVersionAsync("slice-uid")).ReturnsAsync("v1");
             _cacheMock.Setup(x => x.GetEndpointsCountAsync("default", "my-svc")).ReturnsAsync(0);
             _serviceManagerMock.Setup(x => x.GetEndpointSlicesAsync("default", "my-svc"))
-                .ReturnsAsync(new List<V1EndpointSlice> { endpointSlice });
+                .ReturnsAsync(endpointList);
+            _serviceManagerMock.Setup(x => x.GetReadyEndpointCount(endpointList)).Returns(1);
             _synchronizerMock.Setup(x => x.SynchronizeLocalEndpointSliceAsync(endpointSlice)).ReturnsAsync(true);
 
             // Act
@@ -238,11 +240,14 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
                     new V1Endpoint { Conditions = new V1EndpointConditions { Ready = true } }
                 }
             };
+            var endpointList = new List<V1EndpointSlice>{ endpointSlice };
             _cacheMock.Setup(x => x.IsServiceMonitoredAsync("default", "my-svc")).ReturnsAsync(true);
             _cacheMock.Setup(x => x.GetLastResourceVersionAsync("slice-uid")).ReturnsAsync("v1");
             _cacheMock.Setup(x => x.GetEndpointsCountAsync("default", "my-svc")).ReturnsAsync(3);
             _serviceManagerMock.Setup(x => x.GetEndpointSlicesAsync("default", "my-svc"))
-                .ReturnsAsync(new List<V1EndpointSlice> { endpointSlice });
+                .ReturnsAsync(endpointList);
+            _serviceManagerMock.Setup(x => x.GetReadyEndpointCount(endpointList)).Returns(2);
+
             // Act
             await _controller.ReconcileAsync(endpointSlice, CancellationToken.None);
 
