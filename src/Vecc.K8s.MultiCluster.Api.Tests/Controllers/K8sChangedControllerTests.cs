@@ -15,6 +15,7 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
         private readonly Mock<IHostnameSynchronizer> _synchronizerMock;
         private readonly Mock<IKubernetesClient> _clientMock;
         private readonly K8sChangedController _controller;
+        private readonly Mock<IServiceManager> _serviceManagerMock;
 
         public K8sChangedControllerTests()
         {
@@ -22,7 +23,12 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
             _cacheMock = new Mock<ICache>();
             _synchronizerMock = new Mock<IHostnameSynchronizer>();
             _clientMock = new Mock<IKubernetesClient>();
-            _controller = new K8sChangedController(_loggerMock.Object, _cacheMock.Object, _synchronizerMock.Object, _clientMock.Object);
+            _serviceManagerMock = new Mock<IServiceManager>();
+            _controller = new K8sChangedController(_loggerMock.Object,
+                _cacheMock.Object,
+                _synchronizerMock.Object,
+                _clientMock.Object,
+                _serviceManagerMock.Object);
         }
 
         #region Ingress
@@ -201,6 +207,8 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
             _cacheMock.Setup(x => x.IsServiceMonitoredAsync("default", "my-svc")).ReturnsAsync(true);
             _cacheMock.Setup(x => x.GetLastResourceVersionAsync("slice-uid")).ReturnsAsync("v1");
             _cacheMock.Setup(x => x.GetEndpointsCountAsync("default", "my-svc")).ReturnsAsync(0);
+            _serviceManagerMock.Setup(x => x.GetEndpointSlicesAsync("default", "my-svc"))
+                .ReturnsAsync(new List<V1EndpointSlice> { endpointSlice });
             _synchronizerMock.Setup(x => x.SynchronizeLocalEndpointSliceAsync(endpointSlice)).ReturnsAsync(true);
 
             // Act
@@ -233,12 +241,14 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
             _cacheMock.Setup(x => x.IsServiceMonitoredAsync("default", "my-svc")).ReturnsAsync(true);
             _cacheMock.Setup(x => x.GetLastResourceVersionAsync("slice-uid")).ReturnsAsync("v1");
             _cacheMock.Setup(x => x.GetEndpointsCountAsync("default", "my-svc")).ReturnsAsync(3);
-
+            _serviceManagerMock.Setup(x => x.GetEndpointSlicesAsync("default", "my-svc"))
+                .ReturnsAsync(new List<V1EndpointSlice> { endpointSlice });
             // Act
             await _controller.ReconcileAsync(endpointSlice, CancellationToken.None);
 
             // Assert - old count 3, new count 2, both non-zero, no sync
             _synchronizerMock.Verify(x => x.SynchronizeLocalEndpointSliceAsync(It.IsAny<V1EndpointSlice>()), Times.Never);
+            _cacheMock.Verify(x => x.SetEndpointsCountAsync("default", "my-svc", 2), Times.Once);
         }
 
         [Fact]
@@ -260,6 +270,8 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
             _cacheMock.Setup(x => x.IsServiceMonitoredAsync("default", "my-svc")).ReturnsAsync(true);
             _cacheMock.Setup(x => x.GetLastResourceVersionAsync("slice-uid")).ReturnsAsync("v1");
             _cacheMock.Setup(x => x.GetEndpointsCountAsync("default", "my-svc")).ReturnsAsync(2);
+            _serviceManagerMock.Setup(x => x.GetEndpointSlicesAsync("default", "my-svc"))
+                .ReturnsAsync(new List<V1EndpointSlice>());
             _synchronizerMock.Setup(x => x.SynchronizeLocalEndpointSliceAsync(endpointSlice)).ReturnsAsync(true);
 
             // Act
@@ -291,6 +303,7 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
 
             // Assert
             _synchronizerMock.Verify(x => x.SynchronizeLocalEndpointSliceAsync(It.IsAny<V1EndpointSlice>()), Times.Never);
+            _cacheMock.Verify(x => x.SetEndpointsCountAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Never);
         }
 
         #endregion
