@@ -137,7 +137,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 var slicesByService = endpointSlices
                     .GroupBy(s => new { Ns = s.Namespace(), Name = s.GetLabel("kubernetes.io/service-name") ?? "" })
                     .Where(g => !string.IsNullOrEmpty(g.Key.Name));
-                    
+
                 foreach (var serviceSlices in slicesByService)
                 {
                     foreach (var slice in serviceSlices)
@@ -146,6 +146,15 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     }
                     var readyEndpointCount = _serviceManager.GetReadyEndpointCount(serviceSlices);
                     await _cache.SetEndpointsCountAsync(serviceSlices.Key.Ns, serviceSlices.Key.Name, readyEndpointCount);
+                }
+
+                foreach (var service in services)
+                {
+                    if (!slicesByService.Any(g => g.Key.Ns == service.Namespace() && g.Key.Name == service.Name()))
+                    {
+                        // if there are no endpoint slices for this service, make sure to set count to 0 and resource version to empty so that it can be tracked properly
+                        await _cache.SetEndpointsCountAsync(service.Namespace(), service.Name(), 0);
+                    }
                 }
                 _logger.LogDebug("Done tracking services");
 
