@@ -104,8 +104,15 @@ set_namespace() {
 #   Get the resulting IP of the hostname only-in-cluster-test1.test1 from the first test cluster
 #      get_ip 1 only-in-cluster-test1.test1
 get_ip() {
-    IP=$(dig "$2" @127.0.0.1${1} +short +tcp || true)
-
+    local RETRIES=3
+    local IP=""
+    for (( i=1; i<=RETRIES; i++ )); do
+        IP=$(dig "$2" @127.0.0.1${1} +short +tcp +timeout=2 +tries=1 || true)
+        if [ -n "$IP" ]; then
+            break
+        fi
+        sleep 0.5
+    done
     echo -n "$IP"
 }
 
