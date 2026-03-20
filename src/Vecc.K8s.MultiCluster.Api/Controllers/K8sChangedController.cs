@@ -22,6 +22,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         private readonly ICache _cache;
         private readonly IHostnameSynchronizer _synchronizer;
         private readonly IKubernetesClient _client;
+        private readonly IServiceManager _serviceManager;
 
         /// <summary>
         /// </summary>
@@ -29,12 +30,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="cache"></param>
         /// <param name="synchronizer"></param>
         /// <param name="client"></param>
-        public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer, IKubernetesClient client)
+        /// <param name="serviceManager"></param>
+        public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer, IKubernetesClient client, IServiceManager serviceManager)
         {
             _logger = logger;
             _cache = cache;
             _synchronizer = synchronizer;
             _client = client;
+            _serviceManager = serviceManager;
         }
 
         /// <summary>
@@ -44,7 +47,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Ingress>> DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "ingress", state="deleted", @namespace = ingress.Namespace(), ingress = ingress.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "ingress", state = "deleted", @namespace = ingress.Namespace(), ingress = ingress.Name() });
 
             _logger.LogInformation("Ingress deleted");
             await SyncIngressIfRequired(ingress);
@@ -59,7 +62,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Ingress>> ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "ingress", state="reconcile", @namespace = ingress.Namespace(), ingress = ingress.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "ingress", state = "reconcile", @namespace = ingress.Namespace(), ingress = ingress.Name() });
 
             _logger.LogInformation("Ingress reconcile requested");
             await SyncIngressIfRequired(ingress);
@@ -74,7 +77,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Service>> DeletedAsync(V1Service service, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "service", state="deleted", @namespace = service.Namespace(), service = service.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "service", state = "deleted", @namespace = service.Namespace(), service = service.Name() });
 
             _logger.LogInformation("Service deleted");
             await SyncServiceIfRequiredAsync(service);
@@ -89,7 +92,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Service>> ReconcileAsync(V1Service service, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "service", state= "reconcile", @namespace = service.Namespace(), service = service.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "service", state = "reconcile", @namespace = service.Namespace(), service = service.Name() });
 
             _logger.LogInformation("Service reconcile requested");
             await SyncServiceIfRequiredAsync(service);
@@ -105,7 +108,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         public async Task<ReconciliationResult<V1EndpointSlice>> DeletedAsync(V1EndpointSlice endpointSlice, CancellationToken cancellationToken)
         {
             var serviceName = endpointSlice.GetLabel(_serviceNameLabel) ?? endpointSlice.Name();
-            using var _scope = _logger.BeginScope(new {@object = "endpointslice", state="deleted", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
+            using var _scope = _logger.BeginScope(new { @object = "endpointslice", state = "deleted", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
 
             _logger.LogInformation("EndpointSlice deleted");
             await SyncEndpointSliceIfRequiredAsync(endpointSlice, serviceName);
@@ -121,7 +124,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         public async Task<ReconciliationResult<V1EndpointSlice>> ReconcileAsync(V1EndpointSlice endpointSlice, CancellationToken cancellationToken)
         {
             var serviceName = endpointSlice.GetLabel(_serviceNameLabel) ?? endpointSlice.Name();
-            using var _scope = _logger.BeginScope(new {@object = "endpointslice", state= "reconcile", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
+            using var _scope = _logger.BeginScope(new { @object = "endpointslice", state = "reconcile", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
 
             _logger.LogInformation("EndpointSlice reconcile requested");
             await SyncEndpointSliceIfRequiredAsync(endpointSlice, serviceName);
@@ -136,7 +139,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Gslb>> ReconcileAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "gslb", state = "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
             _logger.LogInformation("GSLB reconcile requested");
 
             if (gslb.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
@@ -177,7 +180,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Gslb>> DeletedAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "gslb", state = "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
             _logger.LogInformation("GSLB deleted");
 
             if (gslb.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
@@ -223,11 +226,13 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                 {
                     _logger.LogTrace("Endpoint slice resource version is not the same, checking endpoint count.");
                     var oldCount = await _cache.GetEndpointsCountAsync(endpointSlice.Namespace(), serviceName);
+                    var currentEndpointsForService = await _serviceManager.GetEndpointSlicesAsync(endpointSlice.Namespace(), serviceName);
                     var doSync = false;
 
-                    // Count ready endpoints in this slice
-                    var readyEndpointCount = endpointSlice.Endpoints?
-                        .Count(e => e.Conditions?.Ready == true) ?? 0;
+                    // Count ready endpoints for the service across all its endpoint slices.
+                    var readyEndpointCount = currentEndpointsForService
+                        .SelectMany(s => s.Endpoints.Where(e => e.Conditions?.Ready == true))
+                        .Count();
 
                     // resource version will change as pods start/stop/delete/create, check to see if we need to resync
                     // we only need to resync if pod count is 0 and now we have pods, or if pod count was not 0 and now we don't
@@ -256,6 +261,13 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
                             oldCount, readyEndpointCount);
 
                         await _synchronizer.SynchronizeLocalEndpointSliceAsync(endpointSlice);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("EndpointSlice resource version changed but endpoint count does not require resync. {@oldCount}->{@newCount}",
+                            oldCount, readyEndpointCount);
+
+                        await _cache.SetEndpointsCountAsync(endpointSlice.Namespace(), serviceName, readyEndpointCount);
                     }
                 }
             }

@@ -1,6 +1,7 @@
 ﻿using k8s;
 using k8s.Models;
 using KubeOps.KubernetesClient;
+using KubeOps.KubernetesClient.LabelSelectors;
 using NewRelic.Api.Agent;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
@@ -90,6 +91,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _logger.LogDebug("Getting endpoint slices in the cluster");
 
             var result = await _kubernetesClient.ListAsync<V1EndpointSlice>();
+            _logger.LogDebug("Done getting endpoint slices {count}", result.Count);
+
+            return result;
+        }
+
+        [Trace]
+        public async Task<IList<V1EndpointSlice>> GetEndpointSlicesAsync(string ns, string serviceName)
+        {
+            _logger.LogDebug("Getting endpoint slices in namespace {@namespace} for service {@serviceName}", ns, serviceName);
+
+            var result = await _kubernetesClient.ListAsync<V1EndpointSlice>(ns, new EqualsSelector(_serviceNameLabel, serviceName));
             _logger.LogDebug("Done getting endpoint slices {count}", result.Count);
 
             return result;

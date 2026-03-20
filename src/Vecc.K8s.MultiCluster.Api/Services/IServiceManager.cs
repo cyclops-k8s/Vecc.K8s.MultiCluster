@@ -7,6 +7,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services
         Task<List<V1Service>> GetLoadBalancerServicesAsync(IList<V1Service> services, IList<V1EndpointSlice> endpointSlices);
         Task<IList<V1Service>> GetServicesAsync();
         Task<IList<V1EndpointSlice>> GetEndpointSlicesAsync();
+        Task<IList<V1EndpointSlice>> GetEndpointSlicesAsync(string ns, string serviceName);
         
         /// <summary>
         /// Gets the count of ready endpoints for a service from its endpoint slices
