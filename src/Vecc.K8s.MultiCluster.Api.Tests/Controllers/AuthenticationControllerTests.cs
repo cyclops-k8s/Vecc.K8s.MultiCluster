@@ -92,7 +92,7 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Controllers
         [Fact]
         public async Task Auth_ReturnsCorrectNextIndex_WhenNoApiKeysExist()
         {
-            var emptyAuthOptions = new ApiAuthenticationHandlerOptions { ApiKeys = null };
+            var emptyAuthOptions = new ApiAuthenticationHandlerOptions { ApiKeys = Array.Empty<ApiKey>() };
             _authOptionsMock.Setup(x => x.Value).Returns(emptyAuthOptions);
 
             var controller = new AuthenticationController(_authOptionsMock.Object, _hasher, _optionsMock.Object);
