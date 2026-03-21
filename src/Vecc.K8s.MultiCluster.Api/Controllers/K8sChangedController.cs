@@ -13,14 +13,16 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
     /// </summary>
     [EntityRbac(typeof(V1Ingress), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
-    [EntityRbac(typeof(V1Endpoints), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
+    [EntityRbac(typeof(V1EndpointSlice), Verbs = RbacVerb.Get | RbacVerb.List | RbacVerb.Watch)]
     [EntityRbac(typeof(V1Namespace), Verbs = RbacVerb.List | RbacVerb.Get)]
-    public class K8sChangedController : IEntityController<V1Ingress>, IEntityController<V1Service>, IEntityController<V1Endpoints>, IEntityController<V1Gslb>
+    public class K8sChangedController : IEntityController<V1Ingress>, IEntityController<V1Service>, IEntityController<V1EndpointSlice>, IEntityController<V1Gslb>
     {
+        private const string _serviceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<K8sChangedController> _logger;
         private readonly ICache _cache;
         private readonly IHostnameSynchronizer _synchronizer;
         private readonly IKubernetesClient _client;
+        private readonly IServiceManager _serviceManager;
 
         /// <summary>
         /// </summary>
@@ -28,12 +30,14 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <param name="cache"></param>
         /// <param name="synchronizer"></param>
         /// <param name="client"></param>
-        public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer, IKubernetesClient client)
+        /// <param name="serviceManager"></param>
+        public K8sChangedController(ILogger<K8sChangedController> logger, ICache cache, IHostnameSynchronizer synchronizer, IKubernetesClient client, IServiceManager serviceManager)
         {
             _logger = logger;
             _cache = cache;
             _synchronizer = synchronizer;
             _client = client;
+            _serviceManager = serviceManager;
         }
 
         /// <summary>
@@ -43,7 +47,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Ingress>> DeletedAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "ingress", state="deleted", @namespace = ingress.Namespace(), ingress = ingress.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "ingress", state = "deleted", @namespace = ingress.Namespace(), ingress = ingress.Name() });
 
             _logger.LogInformation("Ingress deleted");
             await SyncIngressIfRequired(ingress);
@@ -58,7 +62,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Ingress>> ReconcileAsync(V1Ingress ingress, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "ingress", state="reconcile", @namespace = ingress.Namespace(), ingress = ingress.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "ingress", state = "reconcile", @namespace = ingress.Namespace(), ingress = ingress.Name() });
 
             _logger.LogInformation("Ingress reconcile requested");
             await SyncIngressIfRequired(ingress);
@@ -73,7 +77,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Service>> DeletedAsync(V1Service service, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "service", state="deleted", @namespace = service.Namespace(), service = service.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "service", state = "deleted", @namespace = service.Namespace(), service = service.Name() });
 
             _logger.LogInformation("Service deleted");
             await SyncServiceIfRequiredAsync(service);
@@ -88,7 +92,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Service>> ReconcileAsync(V1Service service, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "service", state= "reconcile", @namespace = service.Namespace(), service = service.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "service", state = "reconcile", @namespace = service.Namespace(), service = service.Name() });
 
             _logger.LogInformation("Service reconcile requested");
             await SyncServiceIfRequiredAsync(service);
@@ -98,32 +102,34 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
 
         /// <summary>
         /// </summary>
-        /// <param name="endpoints"></param>
+        /// <param name="endpointSlice"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task<ReconciliationResult<V1Endpoints>> DeletedAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1EndpointSlice>> DeletedAsync(V1EndpointSlice endpointSlice, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "endpoints", state="deleted", @namespace = endpoints.Namespace(), endpoints = endpoints.Name() });
+            var serviceName = endpointSlice.GetLabel(_serviceNameLabel) ?? endpointSlice.Name();
+            using var _scope = _logger.BeginScope(new { @object = "endpointslice", state = "deleted", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
 
-            _logger.LogInformation("Endpoints deleted");
-            await SyncEndpointsIfRequiredAsync(endpoints);
+            _logger.LogInformation("EndpointSlice deleted");
+            await SyncEndpointSliceIfRequiredAsync(endpointSlice, serviceName);
 
-            return ReconciliationResult<V1Endpoints>.Success(endpoints);
+            return ReconciliationResult<V1EndpointSlice>.Success(endpointSlice);
         }
 
         /// <summary>
         /// </summary>
-        /// <param name="endpoints"></param>
+        /// <param name="endpointSlice"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task<ReconciliationResult<V1Endpoints>> ReconcileAsync(V1Endpoints endpoints, CancellationToken cancellationToken)
+        public async Task<ReconciliationResult<V1EndpointSlice>> ReconcileAsync(V1EndpointSlice endpointSlice, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "endpoints", state= "reconcile", @namespace = endpoints.Namespace(), endpoints = endpoints.Name() });
+            var serviceName = endpointSlice.GetLabel(_serviceNameLabel) ?? endpointSlice.Name();
+            using var _scope = _logger.BeginScope(new { @object = "endpointslice", state = "reconcile", @namespace = endpointSlice.Namespace(), endpointSlice = endpointSlice.Name(), service = serviceName });
 
-            _logger.LogInformation("Endpoints reconcile requested");
-            await SyncEndpointsIfRequiredAsync(endpoints);
+            _logger.LogInformation("EndpointSlice reconcile requested");
+            await SyncEndpointSliceIfRequiredAsync(endpointSlice, serviceName);
 
-            return ReconciliationResult<V1Endpoints>.Success(endpoints);
+            return ReconciliationResult<V1EndpointSlice>.Success(endpointSlice);
         }
 
         /// <summary>
@@ -133,7 +139,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Gslb>> ReconcileAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "gslb", state = "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
             _logger.LogInformation("GSLB reconcile requested");
 
             if (gslb.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
@@ -174,7 +180,7 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
         /// <returns></returns>
         public async Task<ReconciliationResult<V1Gslb>> DeletedAsync(V1Gslb gslb, CancellationToken cancellationToken)
         {
-            using var _scope = _logger.BeginScope(new {@object = "gslb", state= "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
+            using var _scope = _logger.BeginScope(new { @object = "gslb", state = "reconcile", @namespace = gslb.Namespace(), gslb = gslb.Name() });
             _logger.LogInformation("GSLB deleted");
 
             if (gslb.ObjectReference.Kind == V1Gslb.V1ObjectReference.ReferenceType.Ingress)
@@ -209,49 +215,57 @@ namespace Vecc.K8s.MultiCluster.Api.Controllers
             return ReconciliationResult<V1Gslb>.Success(gslb);
         }
 
-        private async Task SyncEndpointsIfRequiredAsync(V1Endpoints endpoints)
+        private async Task SyncEndpointSliceIfRequiredAsync(V1EndpointSlice endpointSlice, string serviceName)
         {
-            _logger.LogTrace("Syncing endpoints if required");
-            if (await _cache.IsServiceMonitoredAsync(endpoints.Namespace(), endpoints.Name()))
+            _logger.LogTrace("Syncing endpoint slice if required");
+            if (await _cache.IsServiceMonitoredAsync(endpointSlice.Namespace(), serviceName))
             {
-                _logger.LogTrace("Endpoint service is monitored, checking");
-                var oldResourceVersion = await _cache.GetLastResourceVersionAsync(endpoints.Metadata.Uid);
-                if (oldResourceVersion != endpoints.Metadata.ResourceVersion)
+                _logger.LogTrace("Endpoint slice service is monitored, checking");
+                var oldResourceVersion = await _cache.GetLastResourceVersionAsync(endpointSlice.Metadata.Uid);
+                if (oldResourceVersion != endpointSlice.Metadata.ResourceVersion)
                 {
-                    _logger.LogTrace("Endpoint resource version is not the same, checking endpoint count.");
-                    var oldCount = await _cache.GetEndpointsCountAsync(endpoints.Namespace(), endpoints.Name());
+                    _logger.LogTrace("Endpoint slice resource version is not the same, checking endpoint count.");
+                    var oldCount = await _cache.GetEndpointsCountAsync(endpointSlice.Namespace(), serviceName);
+                    var currentEndpointsForService = await _serviceManager.GetEndpointSlicesAsync(endpointSlice.Namespace(), serviceName);
                     var doSync = false;
 
-                    // if there are no subsets then subsets is null, check that here
-                    var subsetCount = endpoints.Subsets?.Count ?? 0;
+                    // Count ready endpoints for the service across all its endpoint slices.
+                    var readyEndpointCount = _serviceManager.GetReadyEndpointCount(currentEndpointsForService);
 
                     // resource version will change as pods start/stop/delete/create, check to see if we need to resync
                     // we only need to resync if pod count is 0 and now we have pods, or if pod count was not 0 and now we don't
-                    if (oldCount != 0 && subsetCount == 0)
+                    if (oldCount != 0 && readyEndpointCount == 0)
                     {
-                        _logger.LogInformation("We had endpoints and now we do not, resyncing");
+                        _logger.LogInformation("We had ready endpoints and now we do not, resyncing");
                         doSync = true;
                     }
-                    else if (oldCount == 0 && subsetCount != 0)
+                    else if (oldCount == 0 && readyEndpointCount != 0)
                     {
-                        _logger.LogInformation("We did not have endpoints and now we do, resyncing");
+                        _logger.LogInformation("We did not have ready endpoints and now we do, resyncing");
                         doSync = true;
                     }
-                    else if (oldCount == 0 && subsetCount == 0)
+                    else if (oldCount == 0 && readyEndpointCount == 0)
                     {
-                        _logger.LogInformation("We did not have endpoints and we still do not, not resyncing");
+                        _logger.LogInformation("We did not have ready endpoints and we still do not, not resyncing");
                     }
                     else
                     {
-                        _logger.LogDebug("We had endpoints and we still do, not resyncing");
+                        _logger.LogDebug("We had ready endpoints and we still do, not resyncing");
                     }
 
                     if (doSync)
                     {
-                        _logger.LogInformation("Endpoints {@oldCount}->{@newCount} change requires resync",
-                            oldCount, subsetCount);
+                        _logger.LogInformation("EndpointSlice {@oldCount}->{@newCount} change requires resync",
+                            oldCount, readyEndpointCount);
 
-                        await _synchronizer.SynchronizeLocalEndpointsAsync(endpoints);
+                        await _synchronizer.SynchronizeLocalEndpointSliceAsync(endpointSlice);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("EndpointSlice resource version changed but endpoint count does not require resync. {@oldCount}->{@newCount}",
+                            oldCount, readyEndpointCount);
+
+                        await _cache.SetEndpointsCountAsync(endpointSlice.Namespace(), serviceName, readyEndpointCount);
                     }
                 }
             }

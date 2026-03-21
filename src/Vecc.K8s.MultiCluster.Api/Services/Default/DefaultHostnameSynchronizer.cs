@@ -73,7 +73,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 var invalidHostnames = new List<string>();
                 IList<V1Ingress>? ingresses = null;
                 IList<V1Service>? services = null;
-                IList<V1Endpoints>? endpoints = null;
+                IList<V1EndpointSlice>? endpointSlices = null;
                 IList<V1Service>? loadBalancerServices = null;
                 V1Gslb[]? gslbs = null;
 
@@ -83,23 +83,23 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 //var namespaces = await _namespaceManager.GetNamsepacesAsync();
                 _logger.LogTrace("Got the namespaces");
 
-                _logger.LogTrace("Getting ingresses, services, endpoints and gslbs");
+                _logger.LogTrace("Getting ingresses, services, endpoint slices and gslbs");
                 await Task.WhenAll(
                     Task.Run(async () => myHosts = await _cache.GetHostsAsync(_multiClusterOptions.Value.ClusterIdentifier) ?? Array.Empty<Models.Core.Host>()),
                     Task.Run(async () => ingresses = await _ingressManager.GetIngressesAsync()),
                     Task.Run(async () => services = await _serviceManager.GetServicesAsync()),
-                    Task.Run(async () => endpoints = await _serviceManager.GetEndpointsAsync()),
+                    Task.Run(async () => endpointSlices = await _serviceManager.GetEndpointSlicesAsync()),
                     Task.Run(async () => gslbs = await _gslbManager.GetGslbsAsync()));
 
-                _logger.LogTrace("Got ingresses, services, endpoints and gslbs");
+                _logger.LogTrace("Got ingresses, services, endpoint slices and gslbs");
 
-                _logger.LogDebug("Counts: ingress-{@ingress} services-{@services} endpoints-{@endpoints} gslbs-{@gslbs}", ingresses!.Count, services!.Count, endpoints!.Count, gslbs!.Length);
+                _logger.LogDebug("Counts: ingress-{@ingress} services-{@services} endpointSlices-{@endpointSlices} gslbs-{@gslbs}", ingresses!.Count, services!.Count, endpointSlices!.Count, gslbs!.Length);
                 _logger.LogTrace("Current hostnames: {@hostnames}", (object)myHosts);
 
                 _logger.LogTrace("Getting available hostnames and load balancer services");
                 await Task.WhenAll(
-                    Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpoints)),
-                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerServicesAsync(services, endpoints))
+                    Task.Run(async () => ingressHosts = await _ingressManager.GetAvailableHostnamesAsync(ingresses, services, endpointSlices)),
+                    Task.Run(async () => loadBalancerServices = await _serviceManager.GetLoadBalancerServicesAsync(services, endpointSlices))
                     );
                 _logger.LogTrace("Done getting available hostnames and load balancer services");
 
@@ -131,11 +131,30 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 {
                     await _cache.SetResourceVersionAsync(service.Metadata.Uid, service.Metadata.ResourceVersion);
                 }
-                _logger.LogDebug("Tracking endpoints and counts");
-                foreach (var endpoint in endpoints)
+                
+                // Group endpoint slices by service name and track counts
+                _logger.LogDebug("Tracking endpoint slices and counts");
+                var slicesByService = endpointSlices
+                    .GroupBy(s => new { Ns = s.Namespace(), Name = s.GetLabel("kubernetes.io/service-name") ?? "" })
+                    .Where(g => !string.IsNullOrEmpty(g.Key.Name));
+
+                foreach (var serviceSlices in slicesByService)
                 {
-                    await _cache.SetResourceVersionAsync(endpoint.Metadata.Uid, endpoint.Metadata.ResourceVersion);
-                    await _cache.SetEndpointsCountAsync(endpoint.Namespace(), endpoint.Name(), endpoint.Subsets?.Count() ?? 0);
+                    foreach (var slice in serviceSlices)
+                    {
+                        await _cache.SetResourceVersionAsync(slice.Metadata.Uid, slice.Metadata.ResourceVersion);
+                    }
+                    var readyEndpointCount = _serviceManager.GetReadyEndpointCount(serviceSlices);
+                    await _cache.SetEndpointsCountAsync(serviceSlices.Key.Ns, serviceSlices.Key.Name, readyEndpointCount);
+                }
+
+                foreach (var service in services)
+                {
+                    if (!slicesByService.Any(g => g.Key.Ns == service.Namespace() && g.Key.Name == service.Name()))
+                    {
+                        // if there are no endpoint slices for this service, make sure to set count to 0 and resource version to empty so that it can be tracked properly
+                        await _cache.SetEndpointsCountAsync(service.Namespace(), service.Name(), 0);
+                    }
                 }
                 _logger.LogDebug("Done tracking services");
 
@@ -212,20 +231,24 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             _logger.LogTrace("Found valid services: {@services}", gslbServices.Select(s => s.Metadata.NamespaceProperty + "/" + s.Metadata.Name));
 
                             var service = gslbServices[0]!;
-                            var endpoint = endpoints.FirstOrDefault(e => e.Namespace() == service.Namespace() && e.Name() == service.Name());
+                            // Get endpoint slices for this service
+                            var serviceEndpointSlices = endpointSlices
+                                .Where(s => s.Namespace() == service.Namespace() && 
+                                       s.GetLabel("kubernetes.io/service-name") == service.Name())
+                                .ToList();
 
                             if (service.Spec.Type == "ExternalName")
                             {
-                                _logger.LogDebug("Service type is ExternalName, skipping check for endpoints");
+                                _logger.LogDebug("Service type is ExternalName, skipping check for endpoint slices");
                             }
-                            else if (endpoint == null)
+                            else if (serviceEndpointSlices.Count == 0)
                             {
-                                _logger.LogWarning("Endpoints not found for {service}. Skipping", service.Namespace() + "/" + service.Name());
+                                _logger.LogWarning("EndpointSlices not found for {service}. Skipping", service.Namespace() + "/" + service.Name());
                                 continue;
                             }
-                            else if ((endpoint.Subsets?.Count ?? 0) == 0)
+                            else if (_serviceManager.GetReadyEndpointCount(serviceEndpointSlices) == 0)
                             {
-                                _logger.LogWarning("Service has no backend endpoints. Skipping.");
+                                _logger.LogWarning("Service has no ready backend endpoints. Skipping.");
                                 continue;
                             }
 
@@ -335,9 +358,9 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         }
 
         [Trace]
-        public async Task<bool> SynchronizeLocalEndpointsAsync(V1Endpoints endpoints)
+        public async Task<bool> SynchronizeLocalEndpointSliceAsync(V1EndpointSlice endpointSlice)
         {
-            _logger.LogDebug("Synchronizing local cluster ingress {@namespace}/{@ingress}", endpoints.Namespace(), endpoints.Name());
+            _logger.LogDebug("Synchronizing local cluster for endpoint slice {@namespace}/{@endpointSlice}", endpointSlice.Namespace(), endpointSlice.Name());
             await SynchronizeLocalClusterAsync();
             _logger.LogDebug("Done");
 

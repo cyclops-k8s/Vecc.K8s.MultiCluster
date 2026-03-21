@@ -7,9 +7,13 @@ EXPOSE 80
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["src/Vecc.K8s.MultiCluster.Api/Vecc.K8s.MultiCluster.Api.csproj", "src/Vecc.K8s.MultiCluster.Api/"]
+COPY ["src/Vecc.K8s.MultiCluster.Api.Tests/Vecc.K8s.MultiCluster.Api.Tests.csproj", "src/Vecc.K8s.MultiCluster.Api.Tests/"]
 RUN dotnet restore "src/Vecc.K8s.MultiCluster.Api/Vecc.K8s.MultiCluster.Api.csproj"
+RUN dotnet restore "src/Vecc.K8s.MultiCluster.Api.Tests/Vecc.K8s.MultiCluster.Api.Tests.csproj"
 COPY . .
 RUN dotnet build "src/Vecc.K8s.MultiCluster.Api/Vecc.K8s.MultiCluster.Api.csproj" -c Release
+RUN dotnet build "src/Vecc.K8s.MultiCluster.Api.Tests/Vecc.K8s.MultiCluster.Api.Tests.csproj" -c Release
+RUN dotnet test "src/Vecc.K8s.MultiCluster.Api.Tests/Vecc.K8s.MultiCluster.Api.Tests.csproj" -c Release --no-build
 
 FROM build AS publish
 RUN dotnet publish "src/Vecc.K8s.MultiCluster.Api/Vecc.K8s.MultiCluster.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false

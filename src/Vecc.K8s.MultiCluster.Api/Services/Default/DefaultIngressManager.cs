@@ -7,6 +7,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
     public class DefaultIngressManager : IIngressManager
     {
+        private const string _serviceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<DefaultIngressManager> _logger;
         private readonly IKubernetesClient _kubernetesClient;
         private readonly INamespaceManager _namespaceManager;
@@ -22,7 +23,8 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
 
         [Trace]
         public async Task<IList<V1Ingress>> GetIngressesAsync()
-        {   _logger.LogDebug("Getting ingress objects in the cluster");
+        {
+            _logger.LogDebug("Getting ingress objects in the cluster");
 
             var result = await _kubernetesClient.ListAsync<V1Ingress>();
             _logger.LogDebug("Done getting ingress objects: {count}", result.Count);
@@ -34,24 +36,30 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         public Task<Dictionary<string, IList<V1Ingress>>> GetAvailableHostnamesAsync(
             IList<V1Ingress> allIngresses,
             IList<V1Service> allServices,
-            IList<V1Endpoints> allEndpoints)
+            IList<V1EndpointSlice> allEndpointSlices)
         {
             var result = new Dictionary<string, IList<V1Ingress>>();
             var hostnameValidIngresses = new Dictionary<string, IList<V1Ingress>>();
             var hostnameInvalidIngresses = new Dictionary<string, IList<V1Ingress>>();
 
-            var namespacedIngresses = allIngresses.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
-            var namespacedEndpoints = allEndpoints.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
-            var namespacedServices = allServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key, x => x.ToArray())!;
+            var namespacedIngresses = allIngresses.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
+            // Group endpoint slices by namespace and service name
+            var namespacedEndpointSlices = allEndpointSlices
+                .Where(slice => slice.GetLabel(_serviceNameLabel) != null)
+                .GroupBy(x => x.Metadata.NamespaceProperty)
+                .ToDictionary(x => x.Key!, x => x
+                    .GroupBy(s => s.GetLabel(_serviceNameLabel)!)
+                    .ToDictionary(s => s.Key, s => s.ToList()));
+            var namespacedServices = allServices.GroupBy(x => x.Metadata.NamespaceProperty).ToDictionary(x => x.Key!, x => x.ToArray());
 
             foreach (var ingressNamespace in namespacedIngresses)
             {
                 using var namespaceScope = _logger.BeginScope("{@namespace}", ingressNamespace.Key);
                 var valid = true;
-                if (!namespacedEndpoints.TryGetValue(ingressNamespace.Key, out var endpoints))
+                if (!namespacedEndpointSlices.TryGetValue(ingressNamespace.Key, out var endpointSlicesByService))
                 {
                     valid = false;
-                    _logger.LogDebug("No endpoints in namespace");
+                    _logger.LogDebug("No endpoint slices in namespace");
                 }
 
                 if (!namespacedServices.TryGetValue(ingressNamespace.Key, out var services))
@@ -63,7 +71,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                 foreach (var ingress in ingressNamespace.Value)
                 {
                     using var ingressScope = _logger.BeginScope("{ingress}", ingress.Name());
-                    if (valid && IsIngressValid(ingress, services!, endpoints!))
+                    if (valid && IsIngressValid(ingress, services!, endpointSlicesByService!))
                     {
                         _logger.LogDebug("Ingress is valid, marking all hostnames as good");
                         foreach (var rule in ingress.Spec.Rules)
@@ -106,8 +114,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return Task.FromResult(result);
         }
 
-        [Trace]
-        public bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, IList<V1Endpoints> endpoints)
+        private bool IsIngressValid(V1Ingress ingress, IList<V1Service> services, Dictionary<string, List<V1EndpointSlice>> endpointSlicesByService)
         {
             using var _ingressScope = _logger.BeginScope("{namespace}/{ingress}", ingress.Namespace(), ingress.Name());
 
@@ -185,24 +192,21 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                         continue;
                     }
 
-                    var endpoint = endpoints.SingleOrDefault(x => x.Metadata.Name == service.Metadata.Name);
-                    if (endpoint == null)
+                    if (!endpointSlicesByService.TryGetValue(service.Metadata.Name, out var serviceEndpointSlices) || serviceEndpointSlices.Count == 0)
                     {
-                        _logger.LogWarning("Missing endpoints {@service}", service.Name());
+                        _logger.LogWarning("Missing endpoint slices for {@service}", service.Name());
                         continue;
                     }
 
-                    if (endpoint.Subsets == null)
+                    var readyEndpointCount = _serviceManager.GetReadyEndpointCount(serviceEndpointSlices);
+                    if (readyEndpointCount == 0)
                     {
-                        _logger.LogWarning("Missing subsets in endpoint {@endpoint}", endpoint.Name());
+                        _logger.LogWarning("No ready endpoints in endpoint slices for {@service}", service.Name());
                         continue;
                     }
 
-                    if (endpoint.Subsets.Count > 0)
-                    {
-                        _logger.LogDebug("Service {@service} is available", service.Name());
-                        result = true;
-                    }
+                    _logger.LogDebug("Service {@service} is available with {@count} ready endpoints", service.Name(), readyEndpointCount);
+                    result = true;
                 }
             }
 
