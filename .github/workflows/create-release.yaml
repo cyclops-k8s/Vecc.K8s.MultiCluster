@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   create_release:
-    runs-on: cyclops-k8s-runners
+    runs-on:
+      group: Default
 
     steps:
     - name: Checkout

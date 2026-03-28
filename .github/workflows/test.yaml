@@ -15,7 +15,8 @@ on:
 
 jobs:
   build:
-    runs-on: cyclops-k8s-runners
+    runs-on:
+      group: Default
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
