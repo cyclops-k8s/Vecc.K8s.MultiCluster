@@ -57,8 +57,10 @@ setup() {
         return $RETCODE
     fi
 
-    echo "Giving it 20 seconds for the api's to register everything"
-    sleep 20
+    echo "Waiting for something to be returned for the hostname"
+    wait_for_ips "cluster-failover.test"
+    (( RETCODE+=$? )) || true
+
     return $RETCODE
 }
 

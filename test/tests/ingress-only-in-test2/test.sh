@@ -23,8 +23,10 @@ setup() {
     wait_for_ingress nginx
     (( RETCODE+=$? )) || true
 
-    echo "Giving it 15 seconds for the api's to register everything"
-    sleep 15
+    echo "Waiting for something to be returned for the hostname"
+    wait_for_ips "only-in-test2.test2"
+    (( RETCODE+=$? )) || true
+
     return $RETCODE
 }
 
