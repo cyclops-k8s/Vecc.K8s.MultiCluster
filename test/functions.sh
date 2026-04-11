@@ -290,24 +290,28 @@ spinner_test() {
 wait_for_ips() {
     COUNT=0
     MAXTRIES=90
-    while
+    while (( COUNT < MAXTRIES ))
+    do
         (( COUNT++ ))
         ACTUAL=$(get_ip 1 "$1")
         [ "$ACTUAL" != "" ] && break
         sleep 1
-    do (( COUNT < MAXTRIES ))
+    done
+
     if [ "$ACTUAL" == "" ]; then
         echo "Cluster 1 ip not populated after $MAXTRIES tries"
         return 1
     fi
 
     COUNT=0
-    while
+    while (( COUNT < MAXTRIES ))
+    do
         (( COUNT++ ))
         ACTUAL=$(get_ip 2 "$1")
         [ "$ACTUAL" != "" ] && break
         sleep 1
-    do (( COUNT < MAXTRIES ))
+    done
+
     if [ "$ACTUAL" == "" ]; then
         echo "Cluster 2 ip not populated after $MAXTRIES tries"
         return 1
