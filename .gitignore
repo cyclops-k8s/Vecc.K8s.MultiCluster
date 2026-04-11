@@ -13,4 +13,4 @@ config
 *.bak
 *.orig
 
-Vecc.K8s.MultiCluster.Api.xml
+Cyclops.MultiCluster.xml

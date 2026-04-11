@@ -2,9 +2,9 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: clustercaches.multicluster.veccsolutions.io
+  name: clustercaches.multicluster.cyclops.io
 spec:
-  group: multicluster.veccsolutions.io
+  group: multicluster.cyclops.io
   names:
     kind: ClusterCache
     listKind: ClusterCacheList
@@ -59,9 +59,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: gslbs.multicluster.veccsolutions.io
+  name: gslbs.multicluster.cyclops.io
 spec:
-  group: multicluster.veccsolutions.io
+  group: multicluster.cyclops.io
   names:
     kind: GSLB
     listKind: GSLBList
@@ -117,9 +117,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: hostnamecaches.multicluster.veccsolutions.io
+  name: hostnamecaches.multicluster.cyclops.io
 spec:
-  group: multicluster.veccsolutions.io
+  group: multicluster.cyclops.io
   names:
     kind: HostnameCache
     listKind: HostnameCacheList
@@ -155,9 +155,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: resourcecaches.multicluster.veccsolutions.io
+  name: resourcecaches.multicluster.cyclops.io
 spec:
-  group: multicluster.veccsolutions.io
+  group: multicluster.cyclops.io
   names:
     kind: ResourceCache
     listKind: ResourceCacheList
@@ -178,9 +178,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: servicecaches.multicluster.veccsolutions.io
+  name: servicecaches.multicluster.cyclops.io
 spec:
-  group: multicluster.veccsolutions.io
+  group: multicluster.cyclops.io
   names:
     kind: ServiceCache
     listKind: ServiceCacheList

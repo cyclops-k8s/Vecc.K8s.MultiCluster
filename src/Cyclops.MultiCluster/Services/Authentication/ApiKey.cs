@@ -1,0 +1,8 @@
+﻿namespace Cyclops.MultiCluster.Services.Authentication
+{
+    public class ApiKey
+    {
+        public string ClusterIdentifier { get; set; } = string.Empty;
+        public string Key { get; set; } = string.Empty;
+    }
+}

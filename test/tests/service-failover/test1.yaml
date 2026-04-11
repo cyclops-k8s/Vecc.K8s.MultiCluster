@@ -49,7 +49,7 @@ spec:
   - port: 80
     targetPort: 80
 ---
-apiVersion: multicluster.veccsolutions.io/v1alpha
+apiVersion: multicluster.cyclops.io/v1alpha
 kind: GSLB
 metadata:
   name: test
