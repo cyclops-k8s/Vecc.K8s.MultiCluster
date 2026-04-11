@@ -17,7 +17,6 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Services.Default
     {
         private readonly Mock<ILogger<DefaultHostnameSynchronizer>> _loggerMock;
         private readonly Mock<IIngressManager> _ingressManagerMock;
-        private readonly Mock<INamespaceManager> _namespaceManagerMock;
         private readonly Mock<IServiceManager> _serviceManagerMock;
         private readonly Mock<ICache> _cacheMock;
         private readonly Mock<IHostApplicationLifetime> _lifetimeMock;
@@ -31,7 +30,6 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Services.Default
         {
             _loggerMock = new Mock<ILogger<DefaultHostnameSynchronizer>>();
             _ingressManagerMock = new Mock<IIngressManager>();
-            _namespaceManagerMock = new Mock<INamespaceManager>();
             _serviceManagerMock = new Mock<IServiceManager>();
             _cacheMock = new Mock<ICache>();
             _lifetimeMock = new Mock<IHostApplicationLifetime>();
@@ -56,7 +54,6 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Services.Default
             return new DefaultHostnameSynchronizer(
                 _loggerMock.Object,
                 _ingressManagerMock.Object,
-                _namespaceManagerMock.Object,
                 _serviceManagerMock.Object,
                 _cacheMock.Object,
                 Options.Create(_options),

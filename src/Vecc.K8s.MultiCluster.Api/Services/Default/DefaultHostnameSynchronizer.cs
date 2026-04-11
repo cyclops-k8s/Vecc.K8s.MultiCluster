@@ -12,7 +12,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
     {
         private readonly ILogger<DefaultHostnameSynchronizer> _logger;
         private readonly IIngressManager _ingressManager;
-        private readonly INamespaceManager _namespaceManager;
         private readonly IServiceManager _serviceManager;
         private readonly ICache _cache;
         private readonly IOptions<MultiClusterOptions> _multiClusterOptions;
@@ -24,12 +23,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly CancellationToken _shutdownCancellationToken;
         private readonly ManualResetEvent _shutdownEvent;
-        private readonly AutoResetEvent _synchronizeLocalClusterHolder;
+        private bool isSynchronizing = false;
 
         public DefaultHostnameSynchronizer(
             ILogger<DefaultHostnameSynchronizer> logger,
             IIngressManager ingressManager,
-            INamespaceManager namespaceManager,
             IServiceManager serviceManager,
             ICache cache,
             IOptions<MultiClusterOptions> multiClusterOptions,
@@ -41,7 +39,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         {
             _logger = logger;
             _ingressManager = ingressManager;
-            _namespaceManager = namespaceManager;
             _serviceManager = serviceManager;
             _cache = cache;
             _multiClusterOptions = multiClusterOptions;
@@ -54,13 +51,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _shutdownCancellationTokenSource = new CancellationTokenSource();
             _shutdownEvent = new ManualResetEvent(true);
             _shutdownCancellationToken = _shutdownCancellationTokenSource.Token;
-            _synchronizeLocalClusterHolder = new AutoResetEvent(true);
         }
 
         [Trace]
         public async Task SynchronizeLocalClusterAsync()
         {
-            _synchronizeLocalClusterHolder.WaitOne();
+            if (isSynchronizing)
+            {
+                return;
+            }
+
+            isSynchronizing = true;
             using var scope = _logger.BeginScope(new { SyncId = Guid.NewGuid() });
             try
             {
@@ -328,7 +329,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
             finally
             {
-                _synchronizeLocalClusterHolder.Set();
+                isSynchronizing = false;
             }
         }
 
