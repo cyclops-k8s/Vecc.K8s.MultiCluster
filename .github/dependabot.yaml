@@ -7,7 +7,7 @@ multi-ecosystem-groups:
 
 updates:
 - package-ecosystem: nuget
-  directory: /src/Vecc.K8s.MultiCluster.Api
+  directory: /src/Cyclops.MultiCluster
   patterns:
   - "*"
   multi-ecosystem-group: multicluster

@@ -68,14 +68,14 @@ spec:
             port: 
               number: 80
 ---
-apiVersion: multicluster.veccsolutions.io/v1alpha
+apiVersion: multicluster.cyclops.io/v1alpha
 kind: GSLB
 metadata:
   name: test
   namespace: cluster-failover
-hostnames:
-- cluster-failover.test
-objectReference:
-  kind: Ingress
-  name: nginx
-  
+spec:
+  hostnames:
+  - cluster-failover.test
+  objectReference:
+    kind: Ingress
+    name: nginx

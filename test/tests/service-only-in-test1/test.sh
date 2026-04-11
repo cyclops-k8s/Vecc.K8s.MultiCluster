@@ -19,8 +19,10 @@ setup() {
     wait_for_resource pod condition=ready app=nginx
     (( RETCODE+=$? )) || true
 
-    echo "Giving it 20 seconds for the api's to register everything"
-    sleep 30
+    echo "Waiting for something to be returned for the hostname"
+    wait_for_ips "service.only-in-test1.test1" $CLUSTER1IP
+    (( RETCODE+=$? )) || true
+
     return $RETCODE
 }
 

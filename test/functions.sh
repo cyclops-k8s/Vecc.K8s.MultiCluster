@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+TIMESTAMPER='sed "s/^/$(date) /"'
 # usage:
 #   use_context <cluster id>
 #
@@ -196,10 +198,10 @@ spinner_setup() {
 
         spinner_wait "Setting up" "
         . ./test.sh
-        echo 'Setup started at $(date)' > $STDOUTFILE
-        setup 1>> $STDOUTFILE 2> $STDERRFILE
+        echo 'Setup started at $(date)' | $TIMESTAMPER > $STDOUTFILE
+        setup 2>&1 | $TIMESTAMPER >> $STDOUTFILE
         RET=\$?
-        echo 'Setup completed at $(date)' >> $STDOUTFILE
+        echo 'Setup completed at $(date)' | $TIMESTAMPER >> $STDOUTFILE
         exit \$RET"
 
         return $?
@@ -211,10 +213,10 @@ spinner_assert() {
 
         spinner_wait "Asserting" "
         . ./test.sh
-        echo 'Assert started at $(date)' > $STDOUTFILE
-        assert 1>> $STDOUTFILE 2> $STDERRFILE
+        echo 'Assert started at $(date)' | $TIMESTAMPER > $STDOUTFILE
+        assert 2>&1 | $TIMESTAMPER >> $STDOUTFILE
         RET=\$?
-        echo 'Assert completed at $(date)' >> $STDOUTFILE
+        echo 'Assert completed at $(date)' | $TIMESTAMPER >> $STDOUTFILE
         exit \$RET"
 
         return $?
@@ -226,10 +228,10 @@ spinner_cleanup() {
 
         spinner_wait "Cleaning up" "
         . ./test.sh
-        echo 'Cleanup started at $(date)' > $STDOUTFILE
-        cleanup 1>> $STDOUTFILE 2> $STDERRFILE
+        echo 'Cleanup started at $(date)' | $TIMESTAMPER > $STDOUTFILE
+        cleanup 2>&1 | $TIMESTAMPER >> $STDOUTFILE
         RET=\$?
-        echo 'Cleanup completed at $(date)' >> $STDOUTFILE
+        echo 'Cleanup completed at $(date)' | $TIMESTAMPER >> $STDOUTFILE
         exit \$RET"
 
         return $?
@@ -285,4 +287,55 @@ spinner_test() {
     (( RESULT = SETUPRESULT + ASSERTRESULT + CLEANUPRESULT )) || true
 
     return $RESULT
+}
+
+wait_for_ips() {
+    COUNT=0
+    MAXTRIES=90
+    HOST="$1"
+    IP1="${2:-}"
+    IP2="${3:-}"
+    IPS=(${IP1})
+
+    if [ -n "${IP2}" ]
+    then
+        IPS+=("${IP2}")
+    fi
+
+    for IP in "${IPS[@]}"
+    do
+        COUNT=0
+        echo "Waiting for $HOST to resolve to $IP"
+        while (( COUNT < MAXTRIES ))
+        do
+            echo "Attempt $((COUNT+1)) of $MAXTRIES: Checking if $HOST resolves to $IP in cluster 1"
+            (( COUNT++ ))
+            ACTUAL=$(get_ip 1 "$HOST")
+            [ "$ACTUAL" == "$IP" ] && FOUND1=1 && echo "Found $IP in cluster 1" && break
+            [ "$ACTUAL" == "" ] && sleep 1 || sleep .5
+        done
+
+        COUNT=0
+        while (( COUNT < MAXTRIES ))
+        do
+            echo "Attempt $((COUNT+1)) of $MAXTRIES: Checking if $HOST resolves to $IP in cluster 2"
+            (( COUNT++ ))
+            ACTUAL=$(get_ip 2 "$HOST")
+            [ "$ACTUAL" == "$IP" ] && FOUND2=2 && echo "Found $IP in cluster 2" && break
+            [ "$ACTUAL" == "" ] && sleep 1 || sleep .5
+        done
+
+        if [ "$FOUND1" != "1" ]
+        then
+            echo "Cluster 1 ip not populated after $MAXTRIES tries $IP"
+            return 1
+        fi
+        if [ "$FOUND2" != "2" ]
+        then
+            echo "Cluster 2 ip not populated after $MAXTRIES tries $IP"
+            return 1
+        fi
+    done
+
+    return 0
 }

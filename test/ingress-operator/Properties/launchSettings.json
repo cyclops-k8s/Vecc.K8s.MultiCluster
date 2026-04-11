@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "Vecc.IngressOperator": {
+    "Cyclops.IngressOperator": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {

@@ -1,6 +1,6 @@
 using k8s.Models;
 using KubeOps.Operator;
-using Vecc.IngressOperator;
+using Cyclops.IngressOperator;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddKubernetesOperator(c => {

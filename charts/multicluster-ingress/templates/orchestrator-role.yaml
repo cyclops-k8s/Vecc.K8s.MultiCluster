@@ -12,7 +12,7 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - multicluster.veccsolutions.io
+  - multicluster.cyclops.io
   verbs:
   - '*'
   resources:

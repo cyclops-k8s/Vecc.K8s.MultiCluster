@@ -247,7 +247,7 @@ rbac:
   enabled: true
 
 image:
-  repository: quay.io/edward_cooke/vecc.k8s.multiclusteringress
+  repository: quay.io/cyclops-k8s/multicluster-ingress
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "1"
@@ -255,9 +255,6 @@ image:
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
-
-
-
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious

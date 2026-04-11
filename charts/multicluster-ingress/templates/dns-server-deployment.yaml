@@ -80,13 +80,13 @@ spec:
           httpGet:
             path: /Healthz/Liveness
             port: http
-          initialDelaySeconds: 30
+          initialDelaySeconds: 10
           timeoutSeconds: 1
         readinessProbe:
           httpGet:
             path: /Healthz/Ready
             port: http
-          initialDelaySeconds: 15
+          initialDelaySeconds: 10
           timeoutSeconds: 1
         resources:
           {{- toYaml .Values.dnsServer.resources | nindent 10 }}

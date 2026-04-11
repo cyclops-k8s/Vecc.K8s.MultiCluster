@@ -4,7 +4,7 @@ using KubeOps.Abstractions.Reconciliation;
 using KubeOps.Abstractions.Reconciliation.Controller;
 using KubeOps.KubernetesClient;
 
-namespace Vecc.IngressOperator
+namespace Cyclops.IngressOperator
 {
     [EntityRbac(typeof(V1Ingress), Verbs = RbacVerb.All)]
     [EntityRbac(typeof(V1Service), Verbs = RbacVerb.All)]

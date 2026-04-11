@@ -36,8 +36,10 @@ setup() {
     wait_for_ingress nginx
     (( RETCODE+=$? )) || true
 
-    echo "Giving it 20 seconds for the api's to register everything"
-    sleep 20
+    echo "Waiting for something to be returned for the hostname"
+    wait_for_ips "test-in-both-equal-weight.test" $CLUSTER1IP $CLUSTER2IP
+    (( RETCODE+=$? )) || true
+
     return $RETCODE
 }
 
