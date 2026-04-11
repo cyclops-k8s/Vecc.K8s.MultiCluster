@@ -2,13 +2,13 @@
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY ["Vecc.IngressOperator.csproj", "."]
-RUN dotnet restore "./Vecc.IngressOperator.csproj"
+COPY ["Cyclops.IngressOperator.csproj", "."]
+RUN dotnet restore "./Cyclops.IngressOperator.csproj"
 COPY . .
-RUN dotnet build "Vecc.IngressOperator.csproj" -c Release -o /app/build/
-RUN dotnet publish "Vecc.IngressOperator.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet build "Cyclops.IngressOperator.csproj" -c Release -o /app/build/
+RUN dotnet publish "Cyclops.IngressOperator.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "Vecc.IngressOperator.dll"]
+ENTRYPOINT ["dotnet", "Cyclops.IngressOperator.dll"]

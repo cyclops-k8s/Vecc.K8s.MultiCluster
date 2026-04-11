@@ -88,14 +88,14 @@ namespace Cyclops.MultiCluster.Tests.Services
         public void DNSServerResponsibleEmailAddress_HasDefault()
         {
             var options = new MultiClusterOptions();
-            Assert.Equal("null.vecck8smulticlusteringress.com", options.DNSServerResponsibleEmailAddress);
+            Assert.Equal("null.cyclops-k8s.io", options.DNSServerResponsibleEmailAddress);
         }
 
         [Fact]
         public void DNSHostname_HasDefault()
         {
             var options = new MultiClusterOptions();
-            Assert.Equal("dns.vecck8smulticlusteringress.com", options.DNSHostname);
+            Assert.Equal("dns.cyclops-k8s.io", options.DNSHostname);
         }
 
         [Fact]

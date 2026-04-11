@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D2E1A479-9A9
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyclops.MultiCluster", "src\Cyclops.MultiCluster\Cyclops.MultiCluster.csproj", "{42A2A630-C590-497E-B678-8AC01597644D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vecc.IngressOperator", "test\ingress-operator\Vecc.IngressOperator.csproj", "{C5D31554-4347-F128-103B-30EE4B035182}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyclops.IngressOperator", "test\ingress-operator\Cyclops.IngressOperator.csproj", "{C5D31554-4347-F128-103B-30EE4B035182}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cyclops.MultiCluster.Tests", "src\Cyclops.MultiCluster.Tests\Cyclops.MultiCluster.Tests.csproj", "{286F8C83-014A-4BD0-8518-51AEB462289D}"
 EndProject

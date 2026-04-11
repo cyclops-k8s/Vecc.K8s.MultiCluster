@@ -16,8 +16,8 @@ namespace Cyclops.MultiCluster.Services
         public byte[] ClusterSalt { get; set; } = Array.Empty<byte>();
         public Dictionary<string, string[]> NameserverNames { get; set; } = new Dictionary<string, string[]>();
         public int DefaultRecordTTL { get; set; } = 5;
-        public string DNSServerResponsibleEmailAddress { get; set; } = "null.vecck8smulticlusteringress.com";
-        public string DNSHostname { get; set; } = "dns.vecck8smulticlusteringress.com";
+        public string DNSServerResponsibleEmailAddress { get; set; } = "null.cyclops-k8s.io";
+        public string DNSHostname { get; set; } = "dns.cyclops-k8s.io";
         public string Namespace { get; set; } = Environment.GetEnvironmentVariable("POD_NAMESPACE") ?? new KubernetesClient().GetCurrentNamespace();
         public int PeriodicRefreshInterval { get; set; } = 60 * 5; //default to 5 minutes
     }
