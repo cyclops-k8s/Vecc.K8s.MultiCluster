@@ -73,8 +73,9 @@ kind: GSLB
 metadata:
   name: test
   namespace: test-in-both-equal-weight
-hostnames:
-- test-in-both-equal-weight.test
-objectReference:
-  kind: Ingress
-  name: nginx
+spec:
+  hostnames:
+  - test-in-both-equal-weight.test
+  objectReference:
+    kind: Ingress
+    name: nginx

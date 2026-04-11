@@ -19,7 +19,7 @@ spec:
           addresses:
             items:
               properties:
-                iPAddress:
+                ipAddress:
                   type: string
                 priority:
                   format: int32

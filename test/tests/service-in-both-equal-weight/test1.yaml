@@ -54,8 +54,9 @@ kind: GSLB
 metadata:
   name: test
   namespace: service-test-in-both-equal-weight
-hostnames:
-- service.test-in-both-equal-weight.test
-objectReference:
-  kind: Service
-  name: nginx
+spec:
+  hostnames:
+  - service.test-in-both-equal-weight.test
+  objectReference:
+    kind: Service
+    name: nginx

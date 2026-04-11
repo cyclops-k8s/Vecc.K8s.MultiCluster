@@ -54,9 +54,9 @@ kind: GSLB
 metadata:
   name: test
   namespace: service-failover
-hostnames:
-- service.failover.test
-objectReference:
-  kind: Service
-  name: nginx
-  
+spec:
+  hostnames:
+  - service.failover.test
+  objectReference:
+    kind: Service
+    name: nginx

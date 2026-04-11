@@ -2,6 +2,7 @@
 using KubeOps.Abstractions.Entities;
 using KubeOps.Abstractions.Entities.Attributes;
 using Cyclops.MultiCluster.Models.Core;
+using System.Text.Json.Serialization;
 
 namespace Cyclops.MultiCluster.Models.K8sEntities
 {
@@ -20,6 +21,7 @@ namespace Cyclops.MultiCluster.Models.K8sEntities
 
         public class HostIPCache
         {
+            [JsonPropertyName("ipAddress")]
             public string IPAddress { get; set; } = string.Empty;
             public int Priority {get; set; }
             public int Weight { get; set; }

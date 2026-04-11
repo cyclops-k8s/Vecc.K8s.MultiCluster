@@ -73,8 +73,9 @@ kind: GSLB
 metadata:
   name: test
   namespace: only-in-test1
-hostnames:
-- only-in-test1.test1
-objectReference:
-  kind: Ingress
-  name: nginx
+spec:
+  hostnames:
+  - only-in-test1.test1
+  objectReference:
+    kind: Ingress
+    name: nginx

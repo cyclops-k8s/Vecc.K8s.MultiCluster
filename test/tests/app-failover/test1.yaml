@@ -73,8 +73,9 @@ kind: GSLB
 metadata:
   name: test
   namespace: failover
-hostnames:
-- failover.test
-objectReference:
-  kind: Ingress
-  name: nginx
+spec:
+  hostnames:
+  - failover.test
+  objectReference:
+    kind: Ingress
+    name: nginx

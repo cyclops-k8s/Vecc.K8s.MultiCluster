@@ -61,7 +61,6 @@ namespace Cyclops.MultiCluster.Models.K8sEntities
             /// Priority to assign this GSLB object. Highest priority is chosen first.
             /// </summary>
             [Description("Priority to assign this GSLB object. Highest priority is chosen first.")]
-            [Required]
             [RangeMinimum(0)]
             public int Priority { get; set; } = 0;
 
@@ -70,7 +69,6 @@ namespace Cyclops.MultiCluster.Models.K8sEntities
             /// The calculation to determine the final weighting of all objects is (weight / sum of all weights) * 100.
             /// </summary>
             [Description("Weight to assign this GSLB object when doing round robin load balancing type. Defaults to 50. The calculation to determine the final weighting of all objects is (weight / sum of all weights) * 100.")]
-            [Required]
             [RangeMinimum(0)]
             public int Weight { get; set; } = 50;
         }
