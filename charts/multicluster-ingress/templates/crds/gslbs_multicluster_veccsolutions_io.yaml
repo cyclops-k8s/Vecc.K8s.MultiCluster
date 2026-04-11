@@ -37,7 +37,7 @@ spec:
             items:
               type: string
             type: array
-          iPOverrides:
+          ipOverrides:
             description: External IP to return instead of what is in the ingress or service
             items:
               type: string

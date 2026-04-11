@@ -1,6 +1,7 @@
 ﻿using k8s.Models;
 using KubeOps.Abstractions.Entities;
 using KubeOps.Abstractions.Entities.Attributes;
+using System.Text.Json.Serialization;
 
 namespace Cyclops.MultiCluster.Models.K8sEntities
 {
@@ -55,6 +56,7 @@ namespace Cyclops.MultiCluster.Models.K8sEntities
             /// External IP to return instead of what is in the ingress or service
             /// </summary>
             [Description("External IP to return instead of what is in the ingress or service")]
+            [JsonPropertyName("ipOverrides")]
             public string[]? IPOverrides { get; set; }
 
             /// <summary>
