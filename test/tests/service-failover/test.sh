@@ -135,84 +135,100 @@ assert() {
     echo "Started deletion of deployment at $(date)"
     kubectl delete deployment test
     echo "Deleted deployment at $(date)"
-    sleep 20
 
-    COUNT=0
-    COUNTOF1=0
-    COUNTOF2=0
-    CLUSTERMINIMUM=25
+    MAX_ITERATION_COUNT=90
+    MAX_COUNT=100
+    RESULT=0
 
-    echo "Testing kind-test1 failover cluster dns"
-    while (( COUNT <= 100 ))
+    while (( COUNT <= MAX_ITERATION_COUNT ))
     do
-        echo "Running $COUNT of 100"
-        (( COUNT++ ))
+        RESULT=0
+        COUNT=0
+        COUNTOF1=0
+        COUNTOF2=0
+        CLUSTERMINIMUM=25
 
-        ACTUAL=$(get_ip 1 service.failover.test)
-        if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
+        echo "Testing kind-test1 failover cluster dns"
+        while (( COUNT <= 100 ))
+        do
+            echo "Running $COUNT of 100"
+            (( COUNT++ ))
+
+            ACTUAL=$(get_ip 1 service.failover.test)
+            if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
+            then
+                echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
+                RESULT=1
+                break
+            fi
+
+            if [ "$ACTUAL" == "$CLUSTER1IP" ]
+            then
+                (( COUNTOF1++ ))
+            else
+                (( COUNTOF2++ ))
+            fi
+        done
+
+        if [ $COUNTOF1 -lt 100 ]
         then
-            echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
+            echo "Did not receive enough cluster 1 IPs, expected at least $CLUSTERMINIMUM, got $COUNTOF1"
             RESULT=1
-            break
         fi
 
-        if [ "$ACTUAL" == "$CLUSTER1IP" ]
+        if [ $COUNTOF2 != 0 ]
         then
-            (( COUNTOF1++ ))
+            echo "Received $COUNTOF2 cluster 2 IPs, expected 0"
+            RESULT=1
+        fi
+
+        COUNT=0
+        COUNTOF1=0
+        COUNTOF2=0
+
+        echo "Testing kind-test2 failover cluster dns"
+        while (( COUNT <= 100 ))
+        do
+            echo "Running $COUNT of 100"
+            (( COUNT++ ))
+
+            ACTUAL=$(get_ip 1 service.failover.test)
+            if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
+            then
+                echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
+                RESULT=1
+                break
+            fi
+
+            if [ "$ACTUAL" == "$CLUSTER1IP" ]
+            then
+                (( COUNTOF1++ ))
+            else
+                (( COUNTOF2++ ))
+            fi
+        done
+
+        if [ $COUNTOF1 -lt 100 ]
+        then
+            echo "Did not receive enough cluster 1 IPs, expected at least $CLUSTERMINIMUM, got $COUNTOF1"
+            RESULT=1
+        fi
+
+        if [ $COUNTOF2 != 0 ]
+        then
+            echo "Received $COUNTOF2 cluster 2 IPs, expected 0"
+            RESULT=1
+        fi
+
+        if [ $RESULT == 0 ]
+        then
+            echo "Successfully failed over to cluster 1 after $COUNT iterations"
+            break
         else
-            (( COUNTOF2++ ))
+            echo "Failover not successful after $COUNT iterations, sleeping for 2 seconds before trying again"
+            sleep 2
         fi
     done
-
-    if [ $COUNTOF1 -lt 100 ]
-    then
-        echo "Did not receive enough cluster 1 IPs, expected at least $CLUSTERMINIMUM, got $COUNTOF1"
-        RESULT=1
-    fi
-
-    if [ $COUNTOF2 != 0 ]
-    then
-        echo "Received $COUNTOF2 cluster 2 IPs, expected 0"
-        RESULT=1
-    fi
-
-    COUNT=0
-    COUNTOF1=0
-    COUNTOF2=0
-
-    echo "Testing kind-test2 failover cluster dns"
-    while (( COUNT <= 100 ))
-    do
-        echo "Running $COUNT of 100"
-        (( COUNT++ ))
-
-        ACTUAL=$(get_ip 1 service.failover.test)
-        if [ "$ACTUAL" != "$CLUSTER1IP" ] && [ "$ACTUAL" != "$CLUSTER2IP" ]
-        then
-            echo "Cluster 1 ip mismatch Actual '$ACTUAL' Expected '$CLUSTER1IP' or '$CLUSTER2IP'"
-            RESULT=1
-            break
-        fi
-
-        if [ "$ACTUAL" == "$CLUSTER1IP" ]
-        then
-            (( COUNTOF1++ ))
-        else
-            (( COUNTOF2++ ))
-        fi
-    done
-
-    if [ $COUNTOF1 -lt 100 ]
-    then
-        echo "Did not receive enough cluster 1 IPs, expected at least $CLUSTERMINIMUM, got $COUNTOF1"
-        RESULT=1
-    fi
-
-    if [ $COUNTOF2 != 0 ]
-    then
-        echo "Received $COUNTOF2 cluster 2 IPs, expected 0"
-        RESULT=1
-    fi
 
     return $RESULT
 }

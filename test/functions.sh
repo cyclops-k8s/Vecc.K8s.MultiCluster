@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+TIMESTAMPER='sed "s/^/$(date) /"'
 # usage:
 #   use_context <cluster id>
 #
@@ -196,10 +198,10 @@ spinner_setup() {
 
         spinner_wait "Setting up" "
         . ./test.sh
-        echo 'Setup started at $(date)' > $STDOUTFILE
-        setup 1>> $STDOUTFILE 2> $STDERRFILE
+        echo 'Setup started at $(date)' | $TIMESTAMPER > $STDOUTFILE
+        setup 2>&1 | $TIMESTAMPER >> $STDOUTFILE
         RET=\$?
-        echo 'Setup completed at $(date)' >> $STDOUTFILE
+        echo 'Setup completed at $(date)' | $TIMESTAMPER >> $STDOUTFILE
         exit \$RET"
 
         return $?
@@ -211,10 +213,10 @@ spinner_assert() {
 
         spinner_wait "Asserting" "
         . ./test.sh
-        echo 'Assert started at $(date)' > $STDOUTFILE
-        assert 1>> $STDOUTFILE 2> $STDERRFILE
+        echo 'Assert started at $(date)' | $TIMESTAMPER > $STDOUTFILE
+        assert 2>&1 | $TIMESTAMPER >> $STDOUTFILE
         RET=\$?
-        echo 'Assert completed at $(date)' >> $STDOUTFILE
+        echo 'Assert completed at $(date)' | $TIMESTAMPER >> $STDOUTFILE
         exit \$RET"
 
         return $?
@@ -226,10 +228,10 @@ spinner_cleanup() {
 
         spinner_wait "Cleaning up" "
         . ./test.sh
-        echo 'Cleanup started at $(date)' > $STDOUTFILE
-        cleanup 1>> $STDOUTFILE 2> $STDERRFILE
+        echo 'Cleanup started at $(date)' | $TIMESTAMPER > $STDOUTFILE
+        cleanup 2>&1 | $TIMESTAMPER >> $STDOUTFILE
         RET=\$?
-        echo 'Cleanup completed at $(date)' >> $STDOUTFILE
+        echo 'Cleanup completed at $(date)' | $TIMESTAMPER >> $STDOUTFILE
         exit \$RET"
 
         return $?
