@@ -266,17 +266,21 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                                     hosts[hostname.Hostname] = new List<HostIP>();
                                 }
                                 hosts[hostname.Hostname].AddRange(hostname.HostIPs.Select(x => x.ToCore()));
-                                hosts[hostname.Hostname] = [.. hosts[hostname.Hostname].Distinct()];
+                                hosts[hostname.Hostname] =
+                                    [.. hosts[hostname.Hostname].DistinctBy(x => $"{x.ClusterIdentifier}:{x.IPAddress}:{x.Priority}:{x.Weight}")];
                             }
                         }
                         _logger.LogDebug("Got {count} host entries", hosts.Count);
 
                         _logger.LogInformation("Getting current hostnames");
                         var hostcaches = await _kubernetesClient.ListAsync<V1HostnameCache>(_options.Value.Namespace);
-                        var existing = hostcaches.ToDictionary(x => x.Hostname!, x => x);
+                        var existing = hostcaches.ToDictionary(x => x.Hostname ?? x.GetLabel("hostname"), x => x);
 
                         _logger.LogDebug("Hostnames found: {count}", hostcaches.Count);
-                        _logger.LogTrace("Hostnames: {@hostnames}", hostcaches.Select(x => new { Hostname = x.Hostname ?? x.GetLabel("hostname"), IPs = x.Addresses }));
+                        if (_logger.IsEnabled(LogLevel.Trace))
+                        {
+                            _logger.LogTrace("Hostnames: {@hostnames}", hostcaches.Select(x => new { Hostname = x.Hostname ?? x.GetLabel("hostname"), IPs = x.Addresses }));
+                        }
 
                         _logger.LogInformation("Setting hostnames ip addresses");
                         foreach (var host in hosts)
@@ -350,7 +354,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     catch (Exception ex)
                     {
                         var jitter = _random.Next(500);
-                        _logger.LogWarning(ex, "Unable to synchronize caches. Attempt {attempt}. Waiting {jitter} ms", iterator+1, jitter);
+                        _logger.LogWarning(ex, "Unable to synchronize caches. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
                         await Task.Delay(jitter);
                     }
                 }
@@ -478,7 +482,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     _logger.LogDebug("Hostname cache entry not found for {hostname}", hostname);
                     return null;
                 }
-                catch(Exception exception)
+                catch (Exception exception)
                 {
                     var jitter = _random.Next(500);
                     _logger.LogWarning(exception, "Unable to get or create the hostname cache entry. Attempt {attempt}. Waiting {jitter} ms",

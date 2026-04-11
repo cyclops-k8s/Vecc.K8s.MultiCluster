@@ -84,9 +84,8 @@ public class MemoryCache(
             rawKeys = _cache.Keys.ToArray();
         }
 
-        var keys = rawKeys.OfType<KeyValuePair<string, object>>()
-            .Where(kvp=>kvp.Key.StartsWith("service-"))
-            .Select(kvp => kvp.Key);
+        var keys = rawKeys.OfType<string>()
+            .Where(key => key.StartsWith("service-"));
 
         foreach (var key in keys)
         {
@@ -96,12 +95,12 @@ public class MemoryCache(
         return Task.CompletedTask;
     }
 
-    private async Task<V1ServiceCache?> GetOrCreateServiceCache(string namespaceName, string name, bool createMissing = true)
+    private Task<V1ServiceCache?> GetOrCreateServiceCache(string namespaceName, string name, bool createMissing = true)
     {
         if (createMissing)
         {
             var cacheKey = GetServiceCacheKey(namespaceName, name);
-            _cache.GetOrCreate(cacheKey, () =>
+            var result = _cache.GetOrCreate(cacheKey, () =>
                 {
                     var serviceCache = new V1ServiceCache();
                     var metadata = serviceCache.EnsureMetadata();
@@ -120,9 +119,10 @@ public class MemoryCache(
                     return serviceCache;
                 }
             );
+            return Task.FromResult(result);
         }
 
-        return _cache.Get<V1ServiceCache>(GetServiceCacheKey(namespaceName, name));
+        return Task.FromResult(_cache.Get<V1ServiceCache>(GetServiceCacheKey(namespaceName, name)));
     }
 
     private string GetIngressKey(string ns, string name)

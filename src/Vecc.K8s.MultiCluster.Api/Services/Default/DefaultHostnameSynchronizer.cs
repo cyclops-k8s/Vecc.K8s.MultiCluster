@@ -23,7 +23,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private readonly CancellationTokenSource _shutdownCancellationTokenSource;
         private readonly CancellationToken _shutdownCancellationToken;
         private readonly ManualResetEvent _shutdownEvent;
-        private bool isSynchronizing = false;
+        private readonly ManualResetEventSlim  _synchronizingLocalClustersEvent = new ManualResetEventSlim(true);
 
         public DefaultHostnameSynchronizer(
             ILogger<DefaultHostnameSynchronizer> logger,
@@ -56,12 +56,12 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         [Trace]
         public async Task SynchronizeLocalClusterAsync()
         {
-            if (isSynchronizing)
+            if (!_synchronizingLocalClustersEvent.IsSet)
             {
                 return;
             }
+            _synchronizingLocalClustersEvent.Wait(_lifetime.ApplicationStopping);
 
-            isSynchronizing = true;
             using var scope = _logger.BeginScope(new { SyncId = Guid.NewGuid() });
             try
             {
@@ -329,7 +329,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
             finally
             {
-                isSynchronizing = false;
+                _synchronizingLocalClustersEvent.Set();
             }
         }
 

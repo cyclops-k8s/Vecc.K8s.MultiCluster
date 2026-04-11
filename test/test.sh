@@ -52,7 +52,7 @@ echo_color "${G}Downloading kind"
 mkdir -p .test
 if [ ! -f ./.test/kind ]
 then
-    curl -Lo ./.test/kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+    curl -Lo ./.test/kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
     chmod +x ./.test/kind
 fi
 
