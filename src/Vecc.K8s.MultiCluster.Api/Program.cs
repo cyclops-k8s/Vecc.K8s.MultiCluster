@@ -107,14 +107,16 @@ else
     throw new Exception($"Expected one of {OperatorFlag}, {OrchestratorFlag}, {DnsServerFlag} or {FrontEndFlag}");
 }
 
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IBasicCache, BasicCache>();
+builder.Services.AddSingleton<IKubernetesCache, KubernetesApiCache>();
 builder.Services.AddSingleton<LeaderStatus>();
 builder.Services.AddSingleton<DefaultDnsResolver>();
 builder.Services.AddSingleton<IGslbManager, DefaultGslbManager>();
 builder.Services.AddSingleton<IIngressManager, DefaultIngressManager>();
-builder.Services.AddSingleton<INamespaceManager, DefaultNamespaceManager>();
 builder.Services.AddSingleton<IServiceManager, DefaultServiceManager>();
 builder.Services.AddSingleton<IHostnameSynchronizer, DefaultHostnameSynchronizer>();
-builder.Services.AddSingleton<ICache, KubernetesApiCache>();
+builder.Services.AddSingleton<ICache, MemoryCache>();
 builder.Services.AddSingleton<IDateTimeProvider, DefaultDateTimeProvider>();
 builder.Services.AddSingleton<IRandom, DefaultRandom>();
 builder.Services.AddSingleton<DefaultDnsResolver>();

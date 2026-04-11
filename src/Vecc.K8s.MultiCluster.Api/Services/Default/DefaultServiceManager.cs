@@ -11,13 +11,11 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
         private const string _serviceNameLabel = "kubernetes.io/service-name";
         private readonly ILogger<DefaultServiceManager> _logger;
         private readonly IKubernetesClient _kubernetesClient;
-        private readonly INamespaceManager _namespaceManager;
 
-        public DefaultServiceManager(ILogger<DefaultServiceManager> logger, IKubernetesClient kubernetesClient, INamespaceManager namespaceManager)
+        public DefaultServiceManager(ILogger<DefaultServiceManager> logger, IKubernetesClient kubernetesClient)
         {
             _logger = logger;
             _kubernetesClient = kubernetesClient;
-            _namespaceManager = namespaceManager;
         }
 
         [Trace]

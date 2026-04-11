@@ -10,7 +10,6 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Services.Default
     {
         private readonly Mock<ILogger<DefaultIngressManager>> _loggerMock;
         private readonly Mock<KubeOps.KubernetesClient.IKubernetesClient> _kubernetesClientMock;
-        private readonly Mock<INamespaceManager> _namespaceManagerMock;
         private readonly Mock<IServiceManager> _serviceManagerMock;
         private readonly DefaultIngressManager _ingressManager;
 
@@ -18,13 +17,11 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Services.Default
         {
             _loggerMock = new Mock<ILogger<DefaultIngressManager>>();
             _kubernetesClientMock = new Mock<KubeOps.KubernetesClient.IKubernetesClient>();
-            _namespaceManagerMock = new Mock<INamespaceManager>();
             _serviceManagerMock = new Mock<IServiceManager>();
 
             _ingressManager = new DefaultIngressManager(
                 _loggerMock.Object,
                 _kubernetesClientMock.Object,
-                _namespaceManagerMock.Object,
                 _serviceManagerMock.Object);
         }
 

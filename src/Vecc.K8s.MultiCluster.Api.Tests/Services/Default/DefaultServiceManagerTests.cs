@@ -168,8 +168,7 @@ namespace Vecc.K8s.MultiCluster.Api.Tests.Services.Default
         private DefaultServiceManager CreateServiceManager()
         {
             var kubernetesClientMock = new Mock<KubeOps.KubernetesClient.IKubernetesClient>();
-            var namespaceManagerMock = new Mock<INamespaceManager>();
-            return new DefaultServiceManager(_loggerMock.Object, kubernetesClientMock.Object, namespaceManagerMock.Object);
+            return new DefaultServiceManager(_loggerMock.Object, kubernetesClientMock.Object);
         }
 
         private V1EndpointSlice CreateEndpointSlice(int readyCount, int notReadyCount)

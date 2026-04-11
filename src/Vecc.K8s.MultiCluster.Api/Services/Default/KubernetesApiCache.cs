@@ -7,7 +7,7 @@ using Vecc.K8s.MultiCluster.Api.Models.K8sEntities;
 
 namespace Vecc.K8s.MultiCluster.Api.Services.Default
 {
-    public class KubernetesApiCache : ICache
+    public class KubernetesApiCache : IKubernetesCache
     {
         private readonly ILogger<KubernetesApiCache> _logger;
         private readonly IKubernetesClient _kubernetesClient;
@@ -60,17 +60,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             return result;
         }
 
-        public async Task<int> GetEndpointsCountAsync(string ns, string name)
-        {
-            _logger.LogTrace("Getting endpoint count for {ns}/{name}", ns, name);
-
-            var service = await GetOrCreateServiceCache(ns, name, false);
-            var result = service?.EndpointCount ?? 0;
-
-            _logger.LogTrace("Got {result} for {ns}/{name}", result, ns, name);
-            return result;
-        }
-
         public async Task<Models.Core.Host?> GetHostInformationAsync(string hostname)
         {
             using var _scope = _logger.BeginScope(new { hostname });
@@ -119,29 +108,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             var result = clusterCache.Hostnames.Select(x => x.ToCore()).ToArray();
 
             _logger.LogTrace("Got {@hosts}", result);
-            return result;
-        }
-
-        public async Task<string> GetLastResourceVersionAsync(string uniqueIdentifier)
-        {
-            using var _scope = _logger.BeginScope(new { uniqueIdentifier });
-            _logger.LogTrace("Getting last resource version");
-            var resource = await _kubernetesClient.GetAsync<V1ResourceCache>(uniqueIdentifier, _options.Value.Namespace);
-            var result = resource?.CurrentResourceVersion ?? string.Empty;
-
-            _logger.LogTrace("Last resource version is {result}", result);
-            return result;
-        }
-
-        public async Task<bool> IsServiceMonitoredAsync(string ns, string name)
-        {
-            using var _scope = _logger.BeginScope(new { @namespace = ns, name });
-            _logger.LogTrace("Checking if service");
-
-            var service = await GetOrCreateServiceCache(ns, name, false);
-            var result = service != null;
-
-            _logger.LogTrace("Service monitor state: {result}", result);
             return result;
         }
 
@@ -268,79 +234,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             _logger.LogDebug("Done");
         }
 
-        public async Task SetEndpointsCountAsync(string ns, string name, int count)
-        {
-            using var _scope = _logger.BeginScope(new { @namespace = ns, name, count });
-            _logger.LogTrace("Setting endpoint count");
-
-            var set = false;
-            for (var iterator = 0; iterator < 5; iterator++)
-            {
-                try
-                {
-                    var service = await GetOrCreateServiceCache(ns, name);
-
-                    service!.EndpointCount = count;
-
-                    await _kubernetesClient.SaveAsync(service);
-                    set = true;
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    var jitter = _random.Next(500);
-                    _logger.LogWarning(exception, "Error setting endpoint. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
-                    await Task.Delay(jitter);
-                }
-            }
-
-            if (!set)
-            {
-                throw new Exception("Unable to set cluster endpoint count after multiple attempts");
-            }
-
-            _logger.LogTrace("Done");
-        }
-
-        public async Task SetResourceVersionAsync(string uniqueIdentifier, string version)
-        {
-            using var _scope = _logger.BeginScope(new { uniqueIdentifier, version });
-            _logger.LogDebug("Setting resource version");
-
-            var set = false;
-            for (var iterator = 0; iterator < 5; iterator++)
-            {
-                try
-                {
-                    var resource = await _kubernetesClient.GetAsync<V1ResourceCache>(uniqueIdentifier, _options.Value.Namespace);
-                    if (resource == null)
-                    {
-                        resource = new V1ResourceCache();
-                        var metadata = resource.EnsureMetadata();
-                        metadata.Name = uniqueIdentifier;
-                        metadata.SetNamespace(_options.Value.Namespace);
-                    }
-                    resource.CurrentResourceVersion = version;
-                    await _kubernetesClient.SaveAsync(resource);
-                    set = true;
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    var jitter = _random.Next(500);
-                    _logger.LogWarning(exception, "Unable to set resource version. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
-                    await Task.Delay(jitter);
-                }
-            }
-
-            if (!set)
-            {
-                throw new Exception("Unable to set resource version after multiple attempts");
-            }
-
-            _logger.LogTrace("Done");
-        }
-
         public async Task SynchronizeCachesAsync()
         {
             using var scope = _logger.BeginScope(new { CacheSynchronizeId = Guid.NewGuid() });
@@ -373,14 +266,21 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                                     hosts[hostname.Hostname] = new List<HostIP>();
                                 }
                                 hosts[hostname.Hostname].AddRange(hostname.HostIPs.Select(x => x.ToCore()));
+                                hosts[hostname.Hostname] =
+                                    [.. hosts[hostname.Hostname].DistinctBy(x => $"{x.ClusterIdentifier}:{x.IPAddress}:{x.Priority}:{x.Weight}")];
                             }
                         }
                         _logger.LogDebug("Got {count} host entries", hosts.Count);
 
                         _logger.LogInformation("Getting current hostnames");
                         var hostcaches = await _kubernetesClient.ListAsync<V1HostnameCache>(_options.Value.Namespace);
+                        var existing = hostcaches.ToDictionary(x => x.Hostname ?? x.GetLabel("hostname"), x => x);
+
                         _logger.LogDebug("Hostnames found: {count}", hostcaches.Count);
-                        _logger.LogTrace("Hostnames: {@hostnames}", hostcaches.Select(x => new { Hostname = x.Hostname ?? x.GetLabel("hostname"), IPs = x.Addresses }));
+                        if (_logger.IsEnabled(LogLevel.Trace))
+                        {
+                            _logger.LogTrace("Hostnames: {@hostnames}", hostcaches.Select(x => new { Hostname = x.Hostname ?? x.GetLabel("hostname"), IPs = x.Addresses }));
+                        }
 
                         _logger.LogInformation("Setting hostnames ip addresses");
                         foreach (var host in hosts)
@@ -388,7 +288,17 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                             var _hostScope = _logger.BeginScope(new { Hostname = host.Key });
                             try
                             {
-                                var hostcache = (await GetOrCreateHostnameCache(host.Key))!;
+                                V1HostnameCache hostcache;
+                                if (existing.ContainsKey(host.Key))
+                                {
+                                    _logger.LogDebug("Hostname cache entry already exists for {@hostname}, using it", host.Key);
+                                    hostcache = existing[host.Key];
+                                }
+                                else
+                                {
+                                    _logger.LogDebug("Hostname cache entry doesn't exist for {@hostname}, creating it", host.Key);
+                                    hostcache = (await GetOrCreateHostnameCache(host.Key))!;
+                                }
                                 var outOfSync = false;
 
                                 if (hostcache.Hostname == null)
@@ -444,7 +354,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     catch (Exception ex)
                     {
                         var jitter = _random.Next(500);
-                        _logger.LogWarning(ex, "Unable to synchronize caches. Attempt {attempt}. Waiting {jitter} ms", iterator+1, jitter);
+                        _logger.LogWarning(ex, "Unable to synchronize caches. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
                         await Task.Delay(jitter);
                     }
                 }
@@ -459,64 +369,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             _logger.LogInformation("Done synchronizing caches");
-        }
-
-        public async Task TrackServiceAsync(string ns, string name)
-        {
-            using var _scope = _logger.BeginScope(new { @namespace = ns, name });
-            var tracked = false;
-            for (var iterator = 0; iterator < 5; iterator++)
-            {
-                try
-                {
-                    _logger.LogDebug("Tracking service");
-                    await GetOrCreateServiceCache(ns, name);
-                    tracked = true;
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    var jitter = _random.Next(500);
-                    _logger.LogWarning(exception, "Unable to track service. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
-                    await Task.Delay(jitter);
-                }
-            }
-
-            if (!tracked)
-            {
-                throw new Exception("Unable to track service after multiple attempts");
-            }
-
-            _logger.LogDebug("Done");
-        }
-
-        public async Task UntrackAllServicesAsync()
-        {
-            _logger.LogInformation("Untracking all services");
-            var deleted = false;
-            for (var iterator = 0; iterator < 5; iterator++)
-            {
-                try
-                {
-                    var serviceCaches = await _kubernetesClient.ListAsync<V1ServiceCache>(_options.Value.Namespace);
-                    await _kubernetesClient.DeleteAsync(serviceCaches);
-                    deleted = true;
-                    break;
-                }
-                catch (Exception exception)
-                {
-                    var jitter = _random.Next(500);
-                    _logger.LogWarning(exception, "Unable to delete all services. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
-                    await Task.Delay(jitter);
-                }
-            }
-
-            if (!deleted)
-            {
-                throw new Exception("Unable to untrack all services after multiple attempts.");
-            }
-
-            _logger.LogDebug("Done");
         }
 
         private string GenerateName(string name)
@@ -630,7 +482,7 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
                     _logger.LogDebug("Hostname cache entry not found for {hostname}", hostname);
                     return null;
                 }
-                catch(Exception exception)
+                catch (Exception exception)
                 {
                     var jitter = _random.Next(500);
                     _logger.LogWarning(exception, "Unable to get or create the hostname cache entry. Attempt {attempt}. Waiting {jitter} ms",
@@ -640,60 +492,6 @@ namespace Vecc.K8s.MultiCluster.Api.Services.Default
             }
 
             throw new Exception("Unable to get or create the hostname cache entry after multiple attempts.");
-        }
-
-        private async Task<V1ServiceCache?> GetOrCreateServiceCache(string namespaceName, string name, bool createMissing = true)
-        {
-            for (var iterator = 0; iterator < 5; iterator++)
-            {
-                try
-                {
-                    var items = await _kubernetesClient.ListAsync<V1ServiceCache>(_options.Value.Namespace, new EqualsSelector("namespace", namespaceName), new EqualsSelector("name", name));
-                    if (items.Count == 1)
-                    {
-                        _logger.LogDebug("Service cache entry found for {namespace}/{name}", namespaceName, name);
-                        return items[0];
-                    }
-                    else if (items.Count > 1)
-                    {
-                        _logger.LogInformation("Too many service cache objects matching {namespace}/{name}, returning the oldest", namespaceName, name);
-                        return items.OrderBy(x => x.Metadata.CreationTimestamp ?? DateTime.MinValue).First();
-                    }
-
-                    if (createMissing)
-                    {
-                        _logger.LogDebug("Service cache entry didn't exist, creating it. {namespace}/{name}", namespaceName, name);
-                        var serviceCache = new V1ServiceCache();
-                        var metadata = serviceCache.EnsureMetadata();
-                        var labels = metadata.EnsureLabels();
-
-                        labels["namespace"] = namespaceName;
-                        labels["name"] = name;
-
-                        metadata.Name = GenerateName(namespaceName + "." + name);
-                        metadata.SetNamespace(_options.Value.Namespace);
-                        serviceCache.Service = new V1ObjectReference
-                        {
-                            Name = name,
-                            NamespaceProperty = namespaceName
-                        };
-                        await _kubernetesClient.CreateAsync(serviceCache);
-
-                        return serviceCache;
-                    }
-
-                    _logger.LogDebug("Service cache entry not found for {namespace}/{name}", namespaceName, name);
-                    return null;
-                }
-                catch (Exception exception)
-                {
-                    var jitter = _random.Next(500);
-                    _logger.LogWarning(exception, "Unable to get or create service cache. Attempt {attempt}. Waiting {jitter} ms", iterator + 1, jitter);
-                    await Task.Delay(jitter);
-                }
-            }
-
-            throw new Exception("Unable to get or create service cache after multiple attempts.");
         }
     }
 }
