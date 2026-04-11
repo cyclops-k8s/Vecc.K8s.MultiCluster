@@ -33,6 +33,9 @@ jobs:
       uses: gittools/actions/gitversion/execute@v3.0.0
       id: gitversion
 
+    - name: Install github-cli
+      run: sudo apt update && sudo apt install -y gh --no-install-recommends
+
     - name: Create release
       run: |
         set -e
