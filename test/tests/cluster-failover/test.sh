@@ -58,7 +58,7 @@ setup() {
     fi
 
     echo "Waiting for something to be returned for the hostname"
-    wait_for_ips "cluster-failover.test"
+    wait_for_ips "cluster-failover.test" $CLUSTER1IP $CLUSTER2IP
     (( RETCODE+=$? )) || true
 
     return $RETCODE

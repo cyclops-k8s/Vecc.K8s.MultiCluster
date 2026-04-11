@@ -20,7 +20,7 @@ setup() {
     (( RETCODE+=$? )) || true
 
     echo "Waiting for something to be returned for the hostname"
-    wait_for_ips "service.only-in-test2.test2"
+    wait_for_ips "service.only-in-test2.test2" $CLUSTER2IP
     (( RETCODE+=$? )) || true
 
     return $RETCODE

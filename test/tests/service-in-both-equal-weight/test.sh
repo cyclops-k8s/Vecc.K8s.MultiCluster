@@ -31,7 +31,7 @@ setup() {
     (( RETCODE+=$? )) || true
 
     echo "Waiting for something to be returned for the hostname"
-    wait_for_ips "service.test-in-both-equal-weight.test"
+    wait_for_ips "service.test-in-both-equal-weight.test"  $CLUSTER1IP $CLUSTER2IP
     (( RETCODE+=$? )) || true
 
     return $RETCODE

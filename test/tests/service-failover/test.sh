@@ -40,7 +40,7 @@ setup() {
     fi
 
     echo "Waiting for something to be returned for the hostname"
-    wait_for_ips "service.failover.test"
+    wait_for_ips "service.failover.test" $CLUSTER1IP $CLUSTER2IP
     (( RETCODE+=$? )) || true
 
     echo "Giving it 20 seconds for the api's to register everything"

@@ -290,32 +290,50 @@ spinner_test() {
 wait_for_ips() {
     COUNT=0
     MAXTRIES=90
-    while (( COUNT < MAXTRIES ))
-    do
-        (( COUNT++ ))
-        ACTUAL=$(get_ip 1 "$1")
-        [ "$ACTUAL" != "" ] && break
-        sleep 1
-    done
+    HOST="$1"
+    IP1="${2:-}"
+    IP2="${3:-}"
+    IPS=(${IP1})
 
-    if [ "$ACTUAL" == "" ]; then
-        echo "Cluster 1 ip not populated after $MAXTRIES tries"
-        return 1
+    if [ -n "${IP2}" ]
+    then
+        IPS+=("${IP2}")
     fi
 
-    COUNT=0
-    while (( COUNT < MAXTRIES ))
+    for IP in "${IPS[@]}"
     do
-        (( COUNT++ ))
-        ACTUAL=$(get_ip 2 "$1")
-        [ "$ACTUAL" != "" ] && break
-        sleep 1
-    done
+        COUNT=0
+        echo "Waiting for $HOST to resolve to $IP"
+        while (( COUNT < MAXTRIES ))
+        do
+            echo "Attempt $((COUNT+1)) of $MAXTRIES: Checking if $HOST resolves to $IP in cluster 1"
+            (( COUNT++ ))
+            ACTUAL=$(get_ip 1 "$HOST")
+            [ "$ACTUAL" == "$IP" ] && FOUND1=1 && echo "Found $IP in cluster 1" && break
+            [ "$ACTUAL" == "" ] && sleep 1 || sleep .5
+        done
 
-    if [ "$ACTUAL" == "" ]; then
-        echo "Cluster 2 ip not populated after $MAXTRIES tries"
-        return 1
-    fi
+        COUNT=0
+        while (( COUNT < MAXTRIES ))
+        do
+            echo "Attempt $((COUNT+1)) of $MAXTRIES: Checking if $HOST resolves to $IP in cluster 2"
+            (( COUNT++ ))
+            ACTUAL=$(get_ip 2 "$HOST")
+            [ "$ACTUAL" == "$IP" ] && FOUND2=2 && echo "Found $IP in cluster 2" && break
+            [ "$ACTUAL" == "" ] && sleep 1 || sleep .5
+        done
+
+        if [ "$FOUND1" != "1" ]
+        then
+            echo "Cluster 1 ip not populated after $MAXTRIES tries $IP"
+            return 1
+        fi
+        if [ "$FOUND2" != "2" ]
+        then
+            echo "Cluster 2 ip not populated after $MAXTRIES tries $IP"
+            return 1
+        fi
+    done
 
     return 0
 }
