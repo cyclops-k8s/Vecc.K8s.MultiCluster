@@ -12,7 +12,6 @@ namespace Cyclops.MultiCluster.Controllers
     [EntityRbac(typeof(V1HostnameCache), Verbs = RbacVerb.All)]
     [EntityRbac(typeof(V1ClusterCache), Verbs = RbacVerb.All)]
     [EntityRbac(typeof(V1ResourceCache), Verbs = RbacVerb.All)]
-    [EntityRbac(typeof(V1ServiceCache), Verbs = RbacVerb.All)]
     public class K8sHostnameCacheController : IEntityController<V1HostnameCache>
     {
         private readonly ILogger<K8sHostnameCacheController> _logger;

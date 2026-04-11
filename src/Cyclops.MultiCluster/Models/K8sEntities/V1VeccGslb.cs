@@ -1,4 +1,8 @@
-﻿using k8s.Models;
+﻿//TODO: Remove this in June 2026 after its use is fully deprecated and replaced by V1Gslb.
+//This is only here to provide a migration path for users of the old API group and to avoid
+//breaking changes for them.
+//It will be removed in June 2026 after its use is fully deprecated and replaced by V1Gslb.
+using k8s.Models;
 using KubeOps.Abstractions.Entities;
 using KubeOps.Abstractions.Entities.Attributes;
 

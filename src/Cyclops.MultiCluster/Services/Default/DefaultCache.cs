@@ -1,13 +1,12 @@
 using Microsoft.Extensions.Options;
-using Cyclops.MultiCluster.Models.K8sEntities;
+using Cyclops.MultiCluster.Models.Core;
 using k8s.Models;
 
 namespace Cyclops.MultiCluster.Services.Default;
 
 public class MemoryCache(
     IBasicCache _cache,
-    IKubernetesCache _kubernetesCache,
-    IOptions<MultiClusterOptions> _options) : ICache
+    IKubernetesCache _kubernetesCache) : ICache
 {
     public Task<DateTime?> GetClusterHeartbeatTimeAsync(string clusterIdentifier)
         => _kubernetesCache.GetClusterHeartbeatTimeAsync(clusterIdentifier);
@@ -42,7 +41,7 @@ public class MemoryCache(
     }
 
     public Task<bool> IsServiceMonitoredAsync(string ns, string name)
-        => Task.FromResult(_cache.TryGetValue<V1ServiceCache>(GetServiceCacheKey(ns, name), out _));
+        => Task.FromResult(_cache.TryGetValue<ServiceCache>(GetServiceCacheKey(ns, name), out _));
 
     public Task RemoveClusterCacheAsync(string clusterIdentifier)
         => _kubernetesCache.RemoveClusterCacheAsync(clusterIdentifier);
@@ -95,26 +94,20 @@ public class MemoryCache(
         return Task.CompletedTask;
     }
 
-    private Task<V1ServiceCache?> GetOrCreateServiceCache(string namespaceName, string name, bool createMissing = true)
+    private Task<ServiceCache?> GetOrCreateServiceCache(string namespaceName, string name, bool createMissing = true)
     {
         if (createMissing)
         {
             var cacheKey = GetServiceCacheKey(namespaceName, name);
             var result = _cache.GetOrCreate(cacheKey, () =>
                 {
-                    var serviceCache = new V1ServiceCache();
-                    var metadata = serviceCache.EnsureMetadata();
-                    var labels = metadata.EnsureLabels();
-
-                    labels["namespace"] = namespaceName;
-                    labels["name"] = name;
-
-                    metadata.Name = namespaceName + "." + name;
-                    metadata.SetNamespace(_options.Value.Namespace);
-                    serviceCache.Service = new V1ObjectReference
+                    var serviceCache = new ServiceCache
                     {
-                        Name = name,
-                        NamespaceProperty = namespaceName
+                        Service = new V1ObjectReference
+                        {
+                            Name = name,
+                            NamespaceProperty = namespaceName
+                        }
                     };
                     return serviceCache;
                 }
@@ -122,7 +115,7 @@ public class MemoryCache(
             return Task.FromResult(result);
         }
 
-        return Task.FromResult(_cache.Get<V1ServiceCache>(GetServiceCacheKey(namespaceName, name)));
+        return Task.FromResult(_cache.Get<ServiceCache>(GetServiceCacheKey(namespaceName, name)));
     }
 
     private string GetIngressKey(string ns, string name)

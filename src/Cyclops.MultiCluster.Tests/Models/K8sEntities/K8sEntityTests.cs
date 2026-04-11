@@ -241,30 +241,4 @@ namespace Cyclops.MultiCluster.Tests.K8sEntityModels
             Assert.Equal("v42", cache.CurrentResourceVersion);
         }
     }
-
-    public class V1ServiceCacheTests
-    {
-        [Fact]
-        public void Constructor_SetsKindAndApiVersion()
-        {
-            var cache = new V1ServiceCache();
-            Assert.Equal("ServiceCache", cache.Kind);
-            Assert.Equal("multicluster.cyclops.io/v1alpha", cache.ApiVersion);
-        }
-
-        [Fact]
-        public void DefaultValues()
-        {
-            var cache = new V1ServiceCache();
-            Assert.NotNull(cache.Service);
-            Assert.Equal(0, cache.EndpointCount);
-        }
-
-        [Fact]
-        public void SetAndGetEndpointCount()
-        {
-            var cache = new V1ServiceCache { EndpointCount = 5 };
-            Assert.Equal(5, cache.EndpointCount);
-        }
-    }
 }

@@ -1,0 +1,69 @@
+{{- if .Values.crds.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: gslbs.multicluster.cyclops.io
+spec:
+  group: multicluster.cyclops.io
+  names:
+    kind: GSLB
+    listKind: GSLBList
+    plural: gslbs
+    singular: gslb
+  scope: Namespaced
+  versions:
+  - name: v1alpha
+    schema:
+      openAPIV3Schema:
+        description: GSLB object to expose services or ingresses across clusters
+        properties:
+          spec:
+            properties:
+              objectReference:
+                description: Reference to the ingress or service
+                properties:
+                  name:
+                    minLength: 1
+                    type: string
+                  kind:
+                    enum:
+                    - Ingress
+                    - Service
+                    type: string
+                required:
+                - name
+                - kind
+                type: object
+              hostnames:
+                description: Hostnames to expose the ingress or service as
+                items:
+                  type: string
+                type: array
+              iPOverrides:
+                description: External IP to return instead of what is in the ingress or service
+                items:
+                  type: string
+                nullable: true
+                type: array
+              priority:
+                description: Priority to assign this GSLB object. Highest priority is chosen first.
+                exclusiveMinimum: false
+                format: int32
+                minimum: 0.0
+                type: integer
+              weight:
+                description: Weight to assign this GSLB object when doing round robin load balancing type. Defaults to 50. The calculation to determine the final weighting of all objects is (weight / sum of all weights) * 100.
+                exclusiveMinimum: false
+                format: int32
+                minimum: 0.0
+                type: integer
+            required:
+            - objectReference
+            - hostnames
+            - priority
+            - weight
+            type: object
+        type: object
+    served: true
+    storage: true
+{{- end }}
