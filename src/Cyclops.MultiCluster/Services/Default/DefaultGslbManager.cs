@@ -41,7 +41,7 @@ namespace Cyclops.MultiCluster.Services.Default
                         Kind = veccGslb.ObjectReference.Kind == V1VeccGslb.V1ObjectReference.ReferenceType.Ingress
                                 ? V1Gslb.V1ObjectReference.ReferenceType.Ingress
                                 : V1Gslb.V1ObjectReference.ReferenceType.Service,
-                        Name = veccGslb.Name(),
+                        Name = veccGslb.ObjectReference.Name,
                     },
                     Priority = veccGslb.Priority,
                     Weight = veccGslb.Weight
