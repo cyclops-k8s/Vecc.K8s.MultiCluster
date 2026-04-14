@@ -26,15 +26,15 @@
           <NoWarn>1701;1702;CS1591</NoWarn>
         </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Destructurama.Attributed" Version="5.2.0" />
+        <PackageReference Include="Destructurama.Attributed" Version="5.3.0" />
         <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
-        <PackageReference Include="KubeOps.Generator" Version="10.3.3">
+        <PackageReference Include="KubeOps.Generator" Version="10.3.4">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="KubeOps.Operator.Web" Version="10.3.3" />
-        <PackageReference Include="KubeOps.Transpiler" Version="10.3.3" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
+        <PackageReference Include="KubeOps.Transpiler" Version="10.3.4" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
         <PackageReference Include="NewRelic.Agent" Version="10.50.0" />
         <PackageReference Include="NewRelic.Agent.Api" Version="10.50.0" />
         <PackageReference Include="NewRelic.LogEnrichers.Serilog" Version="1.2.0" />
