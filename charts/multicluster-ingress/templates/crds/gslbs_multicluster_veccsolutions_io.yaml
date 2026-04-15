@@ -9,6 +9,8 @@ spec:
     kind: GSLB
     listKind: GSLBList
     plural: gslbs
+    shortNames:
+    - veccgslb
     singular: gslb
   scope: Namespaced
   versions:
