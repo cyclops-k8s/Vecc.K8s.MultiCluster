@@ -65,7 +65,8 @@ if (args.Contains(OperatorFlag))
         .AddController<K8sChangedController, V1Ingress>()
         .AddController<K8sChangedController, V1Service>()
         .AddController<K8sChangedController, V1EndpointSlice>()
-        .AddController<K8sChangedController, V1Gslb>();
+        .AddController<K8sChangedController, V1Gslb>()
+        .AddController<K8sChangedController, V1VeccGslb>();
 }
 else if (args.Contains(OrchestratorFlag))
 {
