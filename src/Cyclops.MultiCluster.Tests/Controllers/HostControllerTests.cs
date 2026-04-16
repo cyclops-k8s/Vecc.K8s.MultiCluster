@@ -137,7 +137,7 @@ namespace Cyclops.MultiCluster.Tests.Controllers
         }
 
         [Fact]
-        public async Task UpdateHost_WithNullHostIPs_SetsEmptyHostIPs()
+        public async Task UpdateHost_WithNullHostIPs_RemovesHostFromCache()
         {
             SetupAuthenticatedUser("cluster-1");
             _cacheMock.Setup(x => x.GetHostsAsync("cluster-1"))
@@ -154,13 +154,12 @@ namespace Cyclops.MultiCluster.Tests.Controllers
             _cacheMock.Verify(x => x.SetClusterCacheAsync(
                 "cluster-1",
                 It.Is<Models.Core.Host[]>(hosts =>
-                    hosts.Length == 1 &&
-                    hosts[0].HostIPs.Length == 0)),
+                    hosts.Length == 0)),
                 Times.Once);
         }
 
         [Fact]
-        public async Task UpdateHost_WithEmptyHostIPs_SetsEmptyHostIPs()
+        public async Task UpdateHost_WithEmptyHostIPs_RemovesHostFromCache()
         {
             SetupAuthenticatedUser("cluster-1");
             _cacheMock.Setup(x => x.GetHostsAsync("cluster-1"))
@@ -177,8 +176,7 @@ namespace Cyclops.MultiCluster.Tests.Controllers
             _cacheMock.Verify(x => x.SetClusterCacheAsync(
                 "cluster-1",
                 It.Is<Models.Core.Host[]>(hosts =>
-                    hosts.Length == 1 &&
-                    hosts[0].HostIPs.Length == 0)),
+                    hosts.Length == 0)),
                 Times.Once);
         }
 
