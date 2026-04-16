@@ -72,11 +72,20 @@ namespace Cyclops.MultiCluster.Controllers
 
                 var cluster = await _cache.GetHostsAsync(clusterIdentifier);
                 var hosts = cluster?.Where(x => x.Hostname != model.Hostname).ToList() ?? new List<Models.Core.Host>();
-                hosts.Add(new Models.Core.Host
+
+                if (hostIPs.Length > 0)
                 {
-                    Hostname = model.Hostname,
-                    HostIPs = hostIPs
-                });
+                    hosts.Add(new Models.Core.Host
+                    {
+                        Hostname = model.Hostname,
+                        HostIPs = hostIPs
+                    });
+                }
+                else
+                {
+                    _logger.LogInformation("Removing host {hostname} from cluster cache for {clusterIdentifier}", model.Hostname, clusterIdentifier);
+                }
+
                 await _cache.SetClusterCacheAsync(clusterIdentifier, hosts.ToArray());
 
                 return NoContent();
