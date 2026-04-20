@@ -2,7 +2,6 @@
 using KubeOps.KubernetesClient;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Cyclops.MultiCluster.Services;
 
 namespace Cyclops.MultiCluster.Controllers
 {
@@ -15,19 +14,15 @@ namespace Cyclops.MultiCluster.Controllers
     public class HealthzController : Controller
     {
         private readonly IKubernetesClient _kubernetesClient;
-        private readonly IDateTimeProvider _dateTimeProvider;
-        private static DateTime _lastUp;
         private static bool _ready;
 
         /// <summary>
         /// Health related operations happen here
         /// </summary>
         /// <param name="kubernetesClient"></param>
-        /// <param name="dateTimeProvider"></param>
-        public HealthzController(IKubernetesClient kubernetesClient, IDateTimeProvider dateTimeProvider)
+        public HealthzController(IKubernetesClient kubernetesClient)
         {
             _kubernetesClient = kubernetesClient;
-            _dateTimeProvider = dateTimeProvider;
         }
 
         /// <summary>
@@ -64,28 +59,9 @@ namespace Cyclops.MultiCluster.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet("Liveness")]
-        public async Task<IActionResult> LivenessAsync()
+        public IActionResult Liveness()
         {
-            if (_lastUp < _dateTimeProvider.UtcNow.AddSeconds(-10))
-            {
-                V1Namespace? ns = null;
-                try
-                {
-                    ns = await _kubernetesClient.GetAsync<V1Namespace>(await _kubernetesClient.GetCurrentNamespaceAsync());
-                    if (ns == null)
-                    {
-                        return StatusCode(500, "Namespace result was null");
-                    }
-
-                    _lastUp = _dateTimeProvider.UtcNow;
-                    return Ok(new { Status = "Kubernetes API returned something", Namespace = ns });
-                }
-                catch (Exception ex)
-                {
-                    return StatusCode(500, ex);
-                }
-            }
-            return Ok("Cached response is good.");
+            return Ok("Alive");
         }
     }
 }
