@@ -99,6 +99,10 @@ namespace Cyclops.MultiCluster.Services.Default
                         Hostname = hostname
                     };
                 }
+                else
+                {
+                    _logger.LogDebug("Skipping hostname cache entry {name} with no hostname", cache.Metadata?.Name);
+                }
             }
 
             _logger.LogTrace("Got {count} hosts in bulk", result.Count);
