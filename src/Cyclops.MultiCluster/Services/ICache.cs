@@ -7,6 +7,7 @@ namespace Cyclops.MultiCluster.Services
         Task<string[]> GetClusterIdentifiersAsync();
         Task<int> GetEndpointsCountAsync(string ns, string name);
         Task<Models.Core.Host?> GetHostInformationAsync(string hostname);
+        Task<Dictionary<string, Models.Core.Host>> GetAllHostInformationAsync();
         Task<string[]> GetHostnamesAsync();
         Task<Models.Core.Host[]?> GetHostsAsync(string clusterIdentifier);
         Task<DateTime?> GetClusterHeartbeatTimeAsync(string clusterIdentifier);

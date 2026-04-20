@@ -18,7 +18,7 @@ namespace Cyclops.MultiCluster.Tests.Services.Default
         {
             var queue = new KubernetesQueue();
             string? capturedValue = null;
-            queue.OnHostChangedAsync = (value) =>
+            queue.OnHostChangedAsync = (value, _) =>
             {
                 capturedValue = value;
                 return Task.CompletedTask;
@@ -42,7 +42,7 @@ namespace Cyclops.MultiCluster.Tests.Services.Default
         {
             var queue = new KubernetesQueue();
             string? capturedValue = "initial";
-            queue.OnHostChangedAsync = (value) =>
+            queue.OnHostChangedAsync = (value, _) =>
             {
                 capturedValue = value;
                 return Task.CompletedTask;

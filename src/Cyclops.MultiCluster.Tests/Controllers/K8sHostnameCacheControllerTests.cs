@@ -62,7 +62,7 @@ namespace Cyclops.MultiCluster.Tests.Controllers
         public async Task DeletedAsync_UsesHostnameFromEntity()
         {
             string? capturedHostname = null;
-            _queue.OnHostChangedAsync = (hostname) =>
+            _queue.OnHostChangedAsync = (hostname, _) =>
             {
                 capturedHostname = hostname;
                 return Task.CompletedTask;
@@ -87,7 +87,7 @@ namespace Cyclops.MultiCluster.Tests.Controllers
         public async Task DeletedAsync_FallsBackToLabel_WhenHostnameNull()
         {
             string? capturedHostname = null;
-            _queue.OnHostChangedAsync = (hostname) =>
+            _queue.OnHostChangedAsync = (hostname, _) =>
             {
                 capturedHostname = hostname;
                 return Task.CompletedTask;
@@ -113,7 +113,7 @@ namespace Cyclops.MultiCluster.Tests.Controllers
         public async Task ReconcileAsync_UsesHostnameFromEntity()
         {
             string? capturedHostname = null;
-            _queue.OnHostChangedAsync = (hostname) =>
+            _queue.OnHostChangedAsync = (hostname, _) =>
             {
                 capturedHostname = hostname;
                 return Task.CompletedTask;

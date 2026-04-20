@@ -1,6 +1,6 @@
 ﻿namespace Cyclops.MultiCluster.Services
 {
-    public delegate Task OnHostChangedAsyncDelegate(string? value);
+    public delegate Task OnHostChangedAsyncDelegate(string? value, Models.Core.Host? hostInformation = null);
 
     public interface IQueue
     {

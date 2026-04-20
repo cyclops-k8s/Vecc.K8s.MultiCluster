@@ -2,6 +2,7 @@
 using KubeOps.Abstractions.Rbac;
 using KubeOps.Abstractions.Reconciliation;
 using KubeOps.Abstractions.Reconciliation.Controller;
+using Cyclops.MultiCluster.Models.Core;
 using Cyclops.MultiCluster.Models.K8sEntities;
 using Cyclops.MultiCluster.Services.Default;
 
@@ -53,7 +54,12 @@ namespace Cyclops.MultiCluster.Controllers
             var hostname = entity.Hostname ?? entity.GetLabel("hostname");
             using var _scope = _logger.BeginScope(new {@object = "hostnamecache", state="deleted", @namespace = entity.Namespace(), cluster = entity.Name(), hostname });
             _logger.LogInformation("Reconciling hostname cache");
-            _queue.OnHostChangedAsync(hostname);
+            var hostInfo = new Models.Core.Host
+            {
+                Hostname = hostname,
+                HostIPs = entity.Addresses.Select(x => x.ToCore()).ToArray()
+            };
+            _queue.OnHostChangedAsync(hostname, hostInfo);
             _logger.LogInformation("Hostname cache reconciled");
             return Task.FromResult(ReconciliationResult<V1HostnameCache>.Success(entity));
         }
