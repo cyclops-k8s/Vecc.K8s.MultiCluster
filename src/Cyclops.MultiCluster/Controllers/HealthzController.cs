@@ -55,7 +55,11 @@ namespace Cyclops.MultiCluster.Controllers
         }
 
         /// <summary>
-        /// Check if the pod is alive
+        /// Check if the pod is alive.
+        /// This intentionally does NOT call the Kubernetes API. Liveness probes
+        /// should only verify the process is responsive. The previous implementation
+        /// called GetAsync&lt;V1Namespace&gt; which competed with reconciler traffic and
+        /// timed out under load, causing unnecessary pod restarts across all components.
         /// </summary>
         /// <returns></returns>
         [HttpGet("Liveness")]
