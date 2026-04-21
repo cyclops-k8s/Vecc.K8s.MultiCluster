@@ -82,6 +82,33 @@ namespace Cyclops.MultiCluster.Services.Default
             return null;
         }
 
+        public async Task<Dictionary<string, Models.Core.Host>> GetAllHostInformationAsync()
+        {
+            _logger.LogTrace("Getting all host information in bulk");
+            var allCaches = await _kubernetesClient.ListAsync<V1HostnameCache>(_options.Value.Namespace);
+            var result = new Dictionary<string, Models.Core.Host>();
+
+            foreach (var cache in allCaches)
+            {
+                var hostname = cache.Hostname ?? cache.GetLabel("hostname");
+                if (hostname != null)
+                {
+                    result[hostname] = new Models.Core.Host
+                    {
+                        HostIPs = cache.Addresses.Select(x => x.ToCore()).ToArray(),
+                        Hostname = hostname
+                    };
+                }
+                else
+                {
+                    _logger.LogDebug("Skipping hostname cache entry {name} with no hostname", cache.Metadata?.Name);
+                }
+            }
+
+            _logger.LogTrace("Got {count} hosts in bulk", result.Count);
+            return result;
+        }
+
         public async Task<string[]> GetHostnamesAsync()
         {
             _logger.LogTrace("Getting hostnames");

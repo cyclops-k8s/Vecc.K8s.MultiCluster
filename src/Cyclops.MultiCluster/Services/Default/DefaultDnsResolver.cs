@@ -74,7 +74,7 @@ namespace Cyclops.MultiCluster.Services.Default
         }
 
         [Transaction]
-        private async Task RefreshHostInformationAsync(string? hostname)
+        private async Task RefreshHostInformationAsync(string? hostname, Models.Core.Host? preloadedHostInformation = null)
         {
             using var scope = _logger.BeginScope(new { hostname });
             _logger.LogInformation("Hostname updated, refreshing state.");
@@ -85,7 +85,7 @@ namespace Cyclops.MultiCluster.Services.Default
                 return;
             }
 
-            var hostInformation = await _cache.GetHostInformationAsync(hostname);
+            var hostInformation = preloadedHostInformation ?? await _cache.GetHostInformationAsync(hostname);
             if (hostInformation?.HostIPs == null)
             {
                 //no host information
@@ -322,21 +322,18 @@ namespace Cyclops.MultiCluster.Services.Default
         [Trace]
         private async Task ResyncAsync()
         {
-            var hostnames = await _cache.GetHostnamesAsync();
+            var allHosts = await _cache.GetAllHostInformationAsync();
 
-            if (hostnames != null)
+            foreach (var (hostname, hostInfo) in allHosts)
             {
-                foreach (var hostname in hostnames)
-                {
-                    await RefreshHostInformationAsync(hostname);
-                }
+                await RefreshHostInformationAsync(hostname, hostInfo);
+            }
 
-                foreach (var hostname in _hosts.Keys.ToArray())
+            foreach (var hostname in _hosts.Keys.ToArray())
+            {
+                if (!allHosts.ContainsKey(hostname))
                 {
-                    if (!hostnames.Contains(hostname))
-                    {
-                        _hosts.Remove(hostname, out var _);
-                    }
+                    _hosts.Remove(hostname, out var _);
                 }
             }
         }

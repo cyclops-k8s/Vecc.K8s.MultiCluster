@@ -24,6 +24,9 @@ public class MemoryCache(
     public Task<Models.Core.Host?> GetHostInformationAsync(string hostname)
         => _kubernetesCache.GetHostInformationAsync(hostname);
 
+    public Task<Dictionary<string, Models.Core.Host>> GetAllHostInformationAsync()
+        => _kubernetesCache.GetAllHostInformationAsync();
+
     public Task<string[]> GetHostnamesAsync()
         => _kubernetesCache.GetHostnamesAsync();
 
